@@ -5,6 +5,7 @@ import '../features/auth/presentation/role_selection_screen.dart';
 import '../features/dashboard/presentation/official_shell_screen.dart';
 import '../features/dashboard/presentation/inspector_shell_screen.dart';
 import '../core/widgets/module_placeholder_screen.dart';
+import '../features/projects/presentation/project_list_screen.dart';
 
 class AppRoutes {
   AppRoutes._();
@@ -29,10 +30,7 @@ class AppRoutes {
         officialDashboard: (context) => const OfficialShellScreen(),
         inspectorDashboard: (context) => const InspectorShellScreen(),
 
-        projectsPlaceholder: (context) => const ModulePlaceholderScreen(
-              title: 'Projects',
-              message: 'Projects module will be implemented in a later phase.',
-            ),
+                projectsPlaceholder: (context) => const ProjectListScreen(),
         inspectionsPlaceholder: (context) => const ModulePlaceholderScreen(
               title: 'Inspections',
               message: 'Inspections module will be implemented in a later phase.',
