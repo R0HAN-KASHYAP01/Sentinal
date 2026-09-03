@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import '../screens/splash/splash_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
+import '../features/auth/presentation/signup_screen.dart';
 import '../features/auth/presentation/role_selection_screen.dart';
 import '../features/dashboard/presentation/official_shell_screen.dart';
 import '../features/dashboard/presentation/inspector_shell_screen.dart';
+import '../features/ngo/presentation/ngo_dashboard_screen.dart';
+import '../features/ngo/presentation/attendance_screen.dart';
+import '../features/ngo/presentation/reports_screen.dart';
+import '../features/ngo/presentation/camera_screen.dart';
 import '../core/widgets/module_placeholder_screen.dart';
 import '../features/projects/presentation/project_list_screen.dart';
 
@@ -12,9 +17,15 @@ class AppRoutes {
 
   static const String splash = '/splash';
   static const String login = '/login';
-  static const String roleSelection = '/role-selection';
+  static const String signup = '/signup';
+  static const String roleSelection = '/role-selection'; // kept, currently unused in the login flow
   static const String officialDashboard = '/official-dashboard';
   static const String inspectorDashboard = '/inspector-dashboard';
+  static const String ngoDashboard = '/ngo-dashboard';
+
+  static const String ngoAttendance = '/ngo-attendance';
+  static const String ngoReports = '/ngo-reports';
+  static const String ngoCamera = '/ngo-camera';
 
   static const String projectsPlaceholder = '/projects';
   static const String inspectionsPlaceholder = '/inspections';
@@ -26,11 +37,17 @@ class AppRoutes {
   static Map<String, WidgetBuilder> get routes => {
         splash: (context) => const SplashScreen(),
         login: (context) => const LoginScreen(),
+        signup: (context) => const SignupScreen(),
         roleSelection: (context) => const RoleSelectionScreen(),
         officialDashboard: (context) => const OfficialShellScreen(),
         inspectorDashboard: (context) => const InspectorShellScreen(),
+        ngoDashboard: (context) => const NgoDashboardScreen(),
 
-                projectsPlaceholder: (context) => const ProjectListScreen(),
+        ngoAttendance: (context) => const AttendanceScreen(),
+        ngoReports: (context) => const ReportsScreen(),
+        ngoCamera: (context) => const CameraScreen(),
+
+        projectsPlaceholder: (context) => const ProjectListScreen(),
         inspectionsPlaceholder: (context) => const ModulePlaceholderScreen(
               title: 'Inspections',
               message: 'Inspections module will be implemented in a later phase.',

@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/app_card.dart';
-import '../../../services/mock_auth_service.dart';
+import '../../../services/auth_service.dart';
 import '../../../services/session_service.dart';
+import '../../../models/user.dart';
 import '../../../app/routes.dart';
 import '../../../app/theme.dart';
 
@@ -16,7 +17,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _idController = TextEditingController();
+  final _idController = TextEditingController(); // now holds email
   final _passwordController = TextEditingController();
 
   bool _obscurePassword = true;
@@ -39,7 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
 
-    final result = await MockAuthService.instance.login(
+    final result = await AuthService.instance.login(
       _idController.text,
       _passwordController.text,
     );
@@ -50,7 +51,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (result.success && result.user != null) {
       SessionService.instance.setUser(result.user!);
-      Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.roleSelection, (route) => false);
+
+      final destination = switch (result.user!.role) {
+        UserRole.official => AppRoutes.officialDashboard,
+        UserRole.inspector => AppRoutes.inspectorDashboard,
+        UserRole.ngoInstitute => AppRoutes.ngoDashboard,
+      };
+
+      Navigator.of(context).pushNamedAndRemoveUntil(destination, (route) => false);
     } else {
       setState(() => _errorMessage = result.errorMessage ?? 'Login failed.');
     }
@@ -106,15 +114,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 16),
 
                         AppTextField(
-                          label: 'Mobile Number / Email / Official ID',
+                          label: 'Email',
                           controller: _idController,
-                          keyboardType: TextInputType.text,
+                          keyboardType: TextInputType.emailAddress,
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
-                              return 'Please enter your official ID.';
+                              return 'Please enter your email.';
                             }
-                            if (value.trim().length < 3) {
-                              return 'Please enter a valid login ID.';
+                            if (!value.contains('@')) {
+                              return 'Please enter a valid email.';
                             }
                             return null;
                           },
@@ -179,6 +187,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       const Text('·', style: TextStyle(color: AppColors.textSecondary)),
                       TextButton(onPressed: () {}, child: const Text('Get Help')),
                     ],
+                  ),
+
+                  const SizedBox(height: 4),
+
+                  Center(
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pushNamed(AppRoutes.signup),
+                      child: const Text("Don't have an account? Sign up"),
+                    ),
                   ),
                 ],
               ),
