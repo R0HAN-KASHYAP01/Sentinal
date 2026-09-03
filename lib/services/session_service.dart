@@ -14,10 +14,22 @@ class SessionService {
     currentUser = user;
   }
 
+  // Kept for role_selection_screen.dart, which is currently unused in the
+  // real login flow (role now comes from Supabase) but is left in the
+  // codebase rather than deleted. Not called anywhere in the live auth path.
   void updateRole(UserRole role) {
     final user = currentUser;
     if (user != null) {
-      currentUser = AppUser(id: user.id, name: user.name, role: role);
+      currentUser = AppUser(
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: role,
+        status: user.status,
+        department: user.department,
+        designation: user.designation,
+        registrationNumber: user.registrationNumber,
+      );
     }
   }
 

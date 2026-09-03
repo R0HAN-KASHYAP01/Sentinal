@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/primary_button.dart';
-import '../../../services/mock_auth_service.dart';
+import '../../../core/widgets/app_card.dart';
+import '../../../services/auth_service.dart';
 import '../../../services/session_service.dart';
+import '../../../models/user.dart';
 import '../../../app/routes.dart';
+import '../../../app/theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,7 +17,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _idController = TextEditingController();
+  final _idController = TextEditingController(); // now holds email
   final _passwordController = TextEditingController();
 
   bool _obscurePassword = true;
@@ -37,7 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
 
-    final result = await MockAuthService.instance.login(
+    final result = await AuthService.instance.login(
       _idController.text,
       _passwordController.text,
     );
@@ -48,10 +51,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (result.success && result.user != null) {
       SessionService.instance.setUser(result.user!);
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        AppRoutes.roleSelection,
-        (route) => false,
-      );
+
+      final destination = switch (result.user!.role) {
+        UserRole.official => AppRoutes.officialDashboard,
+        UserRole.inspector => AppRoutes.inspectorDashboard,
+        UserRole.ngoInstitute => AppRoutes.ngoDashboard,
+      };
+
+      Navigator.of(context).pushNamedAndRemoveUntil(destination, (route) => false);
     } else {
       setState(() => _errorMessage = result.errorMessage ?? 'Login failed.');
     }
@@ -69,81 +76,126 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(Icons.monitor_heart, size: 60),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Smart Monitoring',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.shield_outlined, size: 40, color: AppColors.primary),
+                  ),
+                  const SizedBox(height: 18),
+                  const Center(
+                    child: Text(
+                      'Official Smart Monitoring &\nInspection System',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    'Official Login',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 16, color: Colors.black54),
+                  const Center(
+                    child: Text(
+                      'Department of Social Justice & Empowerment',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 28),
 
-                  AppTextField(
-                    label: 'Mobile Number / Email / Official ID',
-                    controller: _idController,
-                    keyboardType: TextInputType.text,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter your official ID.';
-                      }
-                      if (value.trim().length < 3) {
-                        return 'Please enter a valid login ID.';
-                      }
-                      return null;
-                    },
+                  AppCard(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          'Login',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 16),
+
+                        AppTextField(
+                          label: 'Email',
+                          controller: _idController,
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter your email.';
+                            }
+                            if (!value.contains('@')) {
+                              return 'Please enter a valid email.';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 14),
+
+                        AppTextField(
+                          label: 'Password',
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          suffixIcon: IconButton(
+                            icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your password.';
+                            }
+                            return null;
+                          },
+                        ),
+
+                        if (_errorMessage != null) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: AppColors.error.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.error_outline, size: 16, color: AppColors.error),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _errorMessage!,
+                                    style: const TextStyle(color: AppColors.error, fontSize: 12),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        const SizedBox(height: 20),
+
+                        PrimaryButton(
+                          label: _isLoading ? 'Logging in...' : 'Login',
+                          onPressed: _isLoading ? () {} : _handleLogin,
+                        ),
+                      ],
+                    ),
                   ),
+
                   const SizedBox(height: 16),
 
-                  AppTextField(
-                    label: 'Password',
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                      ),
-                      onPressed: () {
-                        setState(() => _obscurePassword = !_obscurePassword);
-                      },
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      TextButton(onPressed: () {}, child: const Text('Forgot Password')),
+                      const Text('·', style: TextStyle(color: AppColors.textSecondary)),
+                      TextButton(onPressed: () {}, child: const Text('Get Help')),
+                    ],
+                  ),
+
+                  const SizedBox(height: 4),
+
+                  Center(
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pushNamed(AppRoutes.signup),
+                      child: const Text("Don't have an account? Sign up"),
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your password.';
-                      }
-                      return null;
-                    },
-                  ),
-
-                  if (_errorMessage != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      _errorMessage!,
-                      style: const TextStyle(color: Colors.red, fontSize: 13),
-                    ),
-                  ],
-
-                  const SizedBox(height: 24),
-
-                  PrimaryButton(
-                    label: _isLoading ? 'Logging in...' : 'Login',
-                    onPressed: _isLoading ? () {} : _handleLogin,
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  TextButton(
-                    onPressed: () {},
-                    child: const Text('Forgot Password / Reset Access'),
-                  ),
-                  TextButton(
-                    onPressed: () {},
-                    child: const Text('Need help? Contact Support'),
                   ),
                 ],
               ),
