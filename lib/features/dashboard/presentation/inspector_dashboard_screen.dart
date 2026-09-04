@@ -1,3 +1,5 @@
+// File: lib/features/dashboard/presentation/inspector_dashboard_screen.dart
+
 import 'package:flutter/material.dart';
 import '../../../services/session_service.dart';
 import '../../../app/routes.dart';
@@ -35,6 +37,13 @@ class InspectorDashboardScreen extends StatelessWidget {
               userName: user?.name ?? 'PMU Inspector',
               onNotificationTap: () {},
               onLogoutTap: () => _logout(context),
+              trailingActions: [
+                IconButton(
+                  icon: const Icon(Icons.map_outlined),
+                  tooltip: 'Institute Map',
+                  onPressed: () => Navigator.of(context).pushNamed(AppRoutes.instituteMap),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
 

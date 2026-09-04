@@ -97,6 +97,11 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
                     label: 'Camera / Video',
                     onTap: () => Navigator.of(context).pushNamed(AppRoutes.ngoCamera),
                   ),
+                  QuickActionCard(
+                    icon: Icons.badge_outlined,
+                    label: 'Institute Profile',
+                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.ngoProfile),
+                  ),
                 ],
               ),
 

@@ -5,6 +5,7 @@ class DashboardHeader extends StatelessWidget {
   final String userName;
   final VoidCallback onNotificationTap;
   final VoidCallback onLogoutTap;
+  final List<Widget>? trailingActions;
 
   const DashboardHeader({
     super.key,
@@ -12,6 +13,7 @@ class DashboardHeader extends StatelessWidget {
     required this.userName,
     required this.onNotificationTap,
     required this.onLogoutTap,
+    this.trailingActions,
   });
 
   @override
@@ -42,6 +44,7 @@ class DashboardHeader extends StatelessWidget {
             ],
           ),
         ),
+        ...?trailingActions,
         IconButton(
           icon: const Icon(Icons.notifications_none),
           onPressed: onNotificationTap,
