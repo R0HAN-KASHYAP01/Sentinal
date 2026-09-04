@@ -4,6 +4,7 @@ import '../screens/splash/splash_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/signup_screen.dart';
 import '../features/auth/presentation/role_selection_screen.dart';
+import '../features/ngo/presentation/ngo_shell_screen.dart';
 import '../features/dashboard/presentation/official_shell_screen.dart';
 import '../features/dashboard/presentation/inspector_shell_screen.dart';
 import '../features/dashboard/presentation/inspector_profile_screen.dart';
@@ -57,7 +58,7 @@ class AppRoutes {
         officialDashboard: (context) => const OfficialShellScreen(),
         inspectorDashboard: (context) => const InspectorShellScreen(),
         inspectorProfile: (context) => const InspectorProfileScreen(),
-        ngoDashboard: (context) => const NgoDashboardScreen(),
+        ngoDashboard: (context) => const NgoShellScreen(),
         ngoProfile: (context) => const NgoProfileScreen(),
 
         ngoAttendance: (context) => const AttendanceScreen(),

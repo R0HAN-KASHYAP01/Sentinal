@@ -5,6 +5,7 @@ class AppTextField extends StatelessWidget {
   final TextEditingController? controller;
   final bool obscureText;
   final Widget? suffixIcon;
+  final Widget? prefixIcon; // <-- added
   final TextInputType? keyboardType;
   final String? Function(String?)? validator;
   final int maxLines;
@@ -15,6 +16,7 @@ class AppTextField extends StatelessWidget {
     this.controller,
     this.obscureText = false,
     this.suffixIcon,
+    this.prefixIcon, // <-- added
     this.keyboardType,
     this.validator,
     this.maxLines = 1,
@@ -30,6 +32,7 @@ class AppTextField extends StatelessWidget {
       maxLines: obscureText ? 1 : maxLines,
       decoration: InputDecoration(
         labelText: label,
+        prefixIcon: prefixIcon, // <-- added
         suffixIcon: suffixIcon,
       ),
     );

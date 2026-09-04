@@ -30,6 +30,7 @@ class _SignupScreenState extends State<SignupScreen> {
   UserRole _role = UserRole.official;
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _agreedToTerms = false;
   String? _errorMessage;
 
   @override
@@ -52,6 +53,11 @@ class _SignupScreenState extends State<SignupScreen> {
       return;
     }
 
+    if (!_agreedToTerms) {
+      setState(() => _errorMessage = 'Please agree to the Terms & Conditions and Privacy Policy.');
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     final result = await AuthService.instance.signUp(
@@ -71,11 +77,51 @@ class _SignupScreenState extends State<SignupScreen> {
     setState(() => _isLoading = false);
 
     if (result.success) {
-      // Account created with status 'pending' until an admin approves it.
       Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
     } else {
       setState(() => _errorMessage = result.errorMessage ?? 'Sign up failed.');
     }
+  }
+
+  Widget _roleOption({required UserRole value, required String label}) {
+    final selected = _role == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _role = value),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primary.withValues(alpha: 0.06) : Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: selected ? AppColors.primary : AppColors.textSecondary.withValues(alpha: 0.3),
+              width: selected ? 1.4 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (selected) ...[
+                const Icon(Icons.check, size: 15, color: AppColors.primary),
+                const SizedBox(width: 4),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: selected ? AppColors.primary : AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -101,6 +147,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       AppTextField(
                         label: 'Full Name',
                         controller: _nameController,
+                        prefixIcon: const Icon(Icons.person_outline),
                         validator: (v) => (v == null || v.trim().isEmpty) ? 'Please enter your name.' : null,
                       ),
                       const SizedBox(height: 14),
@@ -109,6 +156,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         label: 'Email',
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
+                        prefixIcon: const Icon(Icons.mail_outline),
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) return 'Please enter your email.';
                           if (!v.contains('@')) return 'Please enter a valid email.';
@@ -121,6 +169,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         label: 'Phone Number (optional)',
                         controller: _phoneController,
                         keyboardType: TextInputType.phone,
+                        prefixIcon: const Icon(Icons.phone_outlined),
                       ),
                       const SizedBox(height: 14),
 
@@ -128,6 +177,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         label: 'Password',
                         controller: _passwordController,
                         obscureText: _obscurePassword,
+                        prefixIcon: const Icon(Icons.lock_outline),
                         suffixIcon: IconButton(
                           icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
                           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
@@ -151,14 +201,13 @@ class _SignupScreenState extends State<SignupScreen> {
                     children: [
                       const Text('I am a', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 12),
-                      SegmentedButton<UserRole>(
-                        segments: const [
-                          ButtonSegment(value: UserRole.official, label: Text('Official')),
-                          ButtonSegment(value: UserRole.inspector, label: Text('PMU / Inspector')),
-                          ButtonSegment(value: UserRole.ngoInstitute, label: Text('NGO / Institute')),
+
+                      Row(
+                        children: [
+                          _roleOption(value: UserRole.official, label: 'Official'),
+                          _roleOption(value: UserRole.inspector, label: 'Inspector'),
+                          _roleOption(value: UserRole.ngoInstitute, label: 'Institute'),
                         ],
-                        selected: {_role},
-                        onSelectionChanged: (selection) => setState(() => _role = selection.first),
                       ),
                       const SizedBox(height: 16),
 
@@ -166,12 +215,14 @@ class _SignupScreenState extends State<SignupScreen> {
                         AppTextField(
                           label: 'Department (e.g. Dept. of Social Justice & Empowerment)',
                           controller: _departmentController,
+                          prefixIcon: const Icon(Icons.apartment_outlined),
                           validator: (v) => (v == null || v.trim().isEmpty) ? 'Department is required.' : null,
                         ),
                         const SizedBox(height: 14),
                         AppTextField(
                           label: 'Designation (e.g. Deputy Director)',
                           controller: _designationController,
+                          prefixIcon: const Icon(Icons.badge_outlined),
                           validator: (v) => (v == null || v.trim().isEmpty) ? 'Designation is required.' : null,
                         ),
                       ],
@@ -180,12 +231,14 @@ class _SignupScreenState extends State<SignupScreen> {
                         AppTextField(
                           label: 'PMU Department / Unit (e.g. Project Monitoring Unit)',
                           controller: _departmentController,
+                          prefixIcon: const Icon(Icons.apartment_outlined),
                           validator: (v) => (v == null || v.trim().isEmpty) ? 'Department is required.' : null,
                         ),
                         const SizedBox(height: 14),
                         AppTextField(
                           label: 'Designation (optional, e.g. Program Officer)',
                           controller: _designationController,
+                          prefixIcon: const Icon(Icons.badge_outlined),
                         ),
                       ],
 
@@ -193,20 +246,63 @@ class _SignupScreenState extends State<SignupScreen> {
                         AppTextField(
                           label: 'Organization / NGO Name (e.g. Prayas Foundation)',
                           controller: _organizationController,
+                          prefixIcon: const Icon(Icons.corporate_fare_outlined),
                           validator: (v) => (v == null || v.trim().isEmpty) ? 'Organization name is required.' : null,
                         ),
                         const SizedBox(height: 14),
                         AppTextField(
                           label: 'Registration Number (optional, e.g. NGO/2019/00123)',
                           controller: _registrationController,
+                          prefixIcon: const Icon(Icons.badge_outlined),
                         ),
                       ],
                     ],
                   ),
                 ),
 
+                const SizedBox(height: 16),
+
+                // --- Terms agreement ---
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: Checkbox(
+                        value: _agreedToTerms,
+                        activeColor: AppColors.primary,
+                        onChanged: (v) => setState(() => _agreedToTerms = v ?? false),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: RichText(
+                          text: const TextSpan(
+                            style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+                            children: [
+                              TextSpan(text: 'I agree to the '),
+                              TextSpan(
+                                text: 'Terms & Conditions',
+                                style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600),
+                              ),
+                              TextSpan(text: ' and '),
+                              TextSpan(
+                                text: 'Privacy Policy',
+                                style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
                 if (_errorMessage != null) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
@@ -228,9 +324,11 @@ class _SignupScreenState extends State<SignupScreen> {
                 const SizedBox(height: 20),
 
                 PrimaryButton(
-                  label: _isLoading ? 'Creating account...' : 'Sign up',
+                  label: _isLoading ? 'Creating account...' : 'Sign Up',
                   onPressed: _isLoading ? () {} : _handleSignup,
                 ),
+
+                const SizedBox(height: 12),
               ],
             ),
           ),

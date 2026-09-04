@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/primary_button.dart';
-import '../../../core/widgets/app_card.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/session_service.dart';
 import '../../../models/user.dart';
@@ -17,7 +16,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _idController = TextEditingController(); // now holds email
+  final _idController = TextEditingController(); // holds email
   final _passwordController = TextEditingController();
 
   bool _obscurePassword = true;
@@ -67,6 +66,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -76,106 +76,116 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.08),
-                      shape: BoxShape.circle,
+                  // --- Header / Emblem ---
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.08),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.account_balance, size: 40, color: AppColors.primary),
                     ),
-                    child: const Icon(Icons.shield_outlined, size: 40, color: AppColors.primary),
                   ),
                   const SizedBox(height: 18),
-                  const Center(
-                    child: Text(
-                      'Official Smart Monitoring &\nInspection System',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  const Text(
+                    'Official Smart Monitoring &\nInspection System',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                      height: 1.3,
                     ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Department of Social Justice & Empowerment',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Government of India',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 36),
+
+                  // --- Login form header ---
+                  const Text(
+                    'Login',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                   ),
                   const SizedBox(height: 4),
-                  const Center(
-                    child: Text(
-                      'Department of Social Justice & Empowerment',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                    ),
+                  const Text(
+                    'Access your account to continue',
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 20),
 
-                  AppCard(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Text(
-                          'Login',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 16),
+                  AppTextField(
+                    label: 'Email',
+                    controller: _idController,
+                    keyboardType: TextInputType.emailAddress,
+                    prefixIcon: const Icon(Icons.mail_outline),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter your email.';
+                      }
+                      if (!value.contains('@')) {
+                        return 'Please enter a valid email.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
 
-                        AppTextField(
-                          label: 'Email',
-                          controller: _idController,
-                          keyboardType: TextInputType.emailAddress,
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Please enter your email.';
-                            }
-                            if (!value.contains('@')) {
-                              return 'Please enter a valid email.';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 14),
+                  AppTextField(
+                    label: 'Password',
+                    controller: _passwordController,
+                    obscureText: _obscurePassword,
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your password.';
+                      }
+                      return null;
+                    },
+                  ),
 
-                        AppTextField(
-                          label: 'Password',
-                          controller: _passwordController,
-                          obscureText: _obscurePassword,
-                          suffixIcon: IconButton(
-                            icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your password.';
-                            }
-                            return null;
-                          },
-                        ),
-
-                        if (_errorMessage != null) ...[
-                          const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: AppColors.error.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.error_outline, size: 16, color: AppColors.error),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _errorMessage!,
-                                    style: const TextStyle(color: AppColors.error, fontSize: 12),
-                                  ),
-                                ),
-                              ],
+                  if (_errorMessage != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error_outline, size: 16, color: AppColors.error),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _errorMessage!,
+                              style: const TextStyle(color: AppColors.error, fontSize: 12),
                             ),
                           ),
                         ],
-
-                        const SizedBox(height: 20),
-
-                        PrimaryButton(
-                          label: _isLoading ? 'Logging in...' : 'Login',
-                          onPressed: _isLoading ? () {} : _handleLogin,
-                        ),
-                      ],
+                      ),
                     ),
+                  ],
+
+                  const SizedBox(height: 22),
+
+                  PrimaryButton(
+                    label: _isLoading ? 'Logging in...' : 'Login',
+                    onPressed: _isLoading ? () {} : _handleLogin,
                   ),
 
                   const SizedBox(height: 16),
@@ -183,7 +193,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      TextButton(onPressed: () {}, child: const Text('Forgot Password')),
+                      TextButton(onPressed: () {}, child: const Text('Forgot Password?')),
                       const Text('·', style: TextStyle(color: AppColors.textSecondary)),
                       TextButton(onPressed: () {}, child: const Text('Get Help')),
                     ],
@@ -194,8 +204,34 @@ class _LoginScreenState extends State<LoginScreen> {
                   Center(
                     child: TextButton(
                       onPressed: () => Navigator.of(context).pushNamed(AppRoutes.signup),
-                      child: const Text("Don't have an account? Sign up"),
+                      child: RichText(
+                        text: const TextSpan(
+                          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                          children: [
+                            TextSpan(text: "Don't have an account? "),
+                            TextSpan(
+                              text: 'Sign up',
+                              style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
+                  ),
+
+                  const SizedBox(height: 28),
+
+                  // --- Footer ---
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.shield_outlined, size: 14, color: AppColors.textSecondary.withValues(alpha: 0.8)),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Secure  |  Transparent  |  Inclusive',
+                        style: TextStyle(fontSize: 11, color: AppColors.textSecondary.withValues(alpha: 0.8)),
+                      ),
+                    ],
                   ),
                 ],
               ),
