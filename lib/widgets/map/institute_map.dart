@@ -1,0 +1,437 @@
+// FILE: lib/widgets/map/institute_map.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart' as latlng;
+
+import '../../app/theme.dart';
+import '../../core/widgets/status_badge.dart';
+import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/loading_state.dart';
+import '../../models/institute_map_point.dart';
+import '../../models/ngo_institute_profile.dart'; // needed for the NgoSchemeTypeX.label extension
+import '../../services/ngo_institute_service.dart';
+import '../../utils/geo_utils.dart';
+
+/// Reusable, self-contained map of NGOs/institutes fetched from Supabase.
+///
+/// Generic mode (no inspector coordinates): shows every institute with a
+/// saved location, centered on India — used by [InstituteMapScreen] as-is.
+///
+/// Inspector mode: pass [inspectorLatitude]/[inspectorLongitude] to center
+/// on the inspector, draw a [radiusKm] circle, and initially filter
+/// institutes to that radius, e.g.:
+/// ```dart
+/// InstituteMap(
+///   inspectorLatitude: profile.latitude,
+///   inspectorLongitude: profile.longitude,
+///   radiusKm: 100,
+/// )
+/// ```
+class InstituteMap extends StatefulWidget {
+  final bool showSchemes;
+  final void Function(InstituteMapPoint institute)? onInstituteSelected;
+  final double? inspectorLatitude;
+  final double? inspectorLongitude;
+  final double radiusKm;
+
+  const InstituteMap({
+    super.key,
+    this.showSchemes = true,
+    this.onInstituteSelected,
+    this.inspectorLatitude,
+    this.inspectorLongitude,
+    this.radiusKm = 100,
+  });
+
+  bool get _hasInspectorLocation => inspectorLatitude != null && inspectorLongitude != null;
+
+  @override
+  State<InstituteMap> createState() => _InstituteMapState();
+}
+
+class _InstituteMapState extends State<InstituteMap> {
+  static const _defaultCenter = latlng.LatLng(22.9734, 78.6569);
+  static const _defaultZoom = 4.5;
+
+  final MapController _mapController = MapController();
+
+  bool _loading = true;
+  String? _error;
+  List<InstituteMapPoint> _allInstitutes = [];
+
+  /// Starts true (radius view) only in inspector mode; has no effect
+  /// in generic mode, which always shows everything.
+  bool _restrictToRadius = true;
+  bool _hasFitInitialBounds = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _restrictToRadius = widget._hasInspectorLocation;
+    _loadInstitutes();
+  }
+
+  @override
+  void didUpdateWidget(covariant InstituteMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Inspector location changed (e.g. after "Detect My Current Location")
+    // — recenter and refit the radius view.
+    if (widget.inspectorLatitude != oldWidget.inspectorLatitude ||
+        widget.inspectorLongitude != oldWidget.inspectorLongitude) {
+      _hasFitInitialBounds = false;
+      _fitToInitialBounds();
+    }
+  }
+
+  Future<void> _loadInstitutes() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final institutes = await NgoInstituteService.instance.fetchAllForMap();
+      if (!mounted) return;
+      setState(() {
+        _allInstitutes = institutes;
+        _loading = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _fitToInitialBounds());
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Could not load institutes. Please check your connection and try again.';
+        _loading = false;
+      });
+    }
+  }
+
+  void _fitToInitialBounds() {
+    if (_hasFitInitialBounds || !widget._hasInspectorLocation) return;
+
+    final lat = widget.inspectorLatitude!;
+    final lng = widget.inspectorLongitude!;
+    final bounds = GeoUtils.boundsForRadius(lat, lng, widget.radiusKm);
+
+    try {
+      _mapController.fitCamera(
+        CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(32)),
+      );
+      _hasFitInitialBounds = true;
+    } catch (_) {
+      // Map may not be mounted/ready yet — retried on the next callback.
+    }
+  }
+
+  List<InstituteMapPoint> get _visibleInstitutes {
+    if (!widget._hasInspectorLocation || !_restrictToRadius) return _allInstitutes;
+    final lat = widget.inspectorLatitude!;
+    final lng = widget.inspectorLongitude!;
+    return _allInstitutes
+        .where((i) => GeoUtils.distanceKm(lat, lng, i.latitude, i.longitude) <= widget.radiusKm)
+        .toList();
+  }
+
+  Future<void> _goToMyLocation() async {
+    // Inspector mode: "my location" recenters on the saved inspector point.
+    if (widget._hasInspectorLocation) {
+      _hasFitInitialBounds = false;
+      _fitToInitialBounds();
+      return;
+    }
+    // Generic mode: fall back to the device's live GPS position.
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
+      );
+      _mapController.move(latlng.LatLng(position.latitude, position.longitude), 12);
+    } catch (_) {
+      // Best-effort only.
+    }
+  }
+
+  void _showInstituteDetails(InstituteMapPoint institute) {
+    widget.onInstituteSelected?.call(institute);
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => _InstituteDetailsSheet(
+        institute: institute,
+        showScheme: widget.showSchemes,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const LoadingState(message: 'Loading map data...');
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 40, color: AppColors.error),
+              const SizedBox(height: 12),
+              Text(_error!, textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+              const SizedBox(height: 16),
+              OutlinedButton(onPressed: _loadInstitutes, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final visible = _visibleInstitutes;
+    final restricting = widget._hasInspectorLocation && _restrictToRadius;
+
+    if (visible.isEmpty) {
+      return Column(
+        children: [
+          Expanded(
+            child: EmptyState(
+              icon: Icons.location_off_outlined,
+              title: restricting
+                  ? 'No institutes within ${widget.radiusKm.toStringAsFixed(0)} km'
+                  : 'No NGOs or institutes found',
+              message: restricting
+                  ? 'No institutes were found within ${widget.radiusKm.toStringAsFixed(0)} km of your current location.'
+                  : 'Institutes with a saved location will appear here.',
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 12,
+              children: [
+                TextButton.icon(
+                  onPressed: _loadInstitutes,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Refresh'),
+                ),
+                if (restricting)
+                  TextButton.icon(
+                    onPressed: () => setState(() => _restrictToRadius = false),
+                    icon: const Icon(Icons.public, size: 18),
+                    label: const Text('Show All Institutes'),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    final inspectorPoint = widget._hasInspectorLocation
+        ? latlng.LatLng(widget.inspectorLatitude!, widget.inspectorLongitude!)
+        : null;
+
+    return Stack(
+      children: [
+        FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: inspectorPoint ?? _defaultCenter,
+            initialZoom: inspectorPoint != null ? 8 : _defaultZoom,
+            minZoom: 3,
+            maxZoom: 18,
+            onMapReady: _fitToInitialBounds,
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.example.smart_monitoring_app',
+            ),
+            if (inspectorPoint != null && restricting)
+              CircleLayer(
+                circles: [
+                  CircleMarker(
+                    point: inspectorPoint,
+                    radius: widget.radiusKm * 1000,
+                    useRadiusInMeter: true,
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    borderColor: AppColors.primary.withValues(alpha: 0.4),
+                    borderStrokeWidth: 1.5,
+                  ),
+                ],
+              ),
+            MarkerLayer(
+              markers: [
+                ...visible.map(
+                  (institute) => Marker(
+                    point: latlng.LatLng(institute.latitude, institute.longitude),
+                    width: 42,
+                    height: 42,
+                    child: GestureDetector(
+                      onTap: () => _showInstituteDetails(institute),
+                      child: const Icon(Icons.location_on, color: AppColors.primary, size: 38),
+                    ),
+                  ),
+                ),
+                if (inspectorPoint != null)
+                  Marker(
+                    point: inspectorPoint,
+                    width: 48,
+                    height: 48,
+                    child: const _InspectorMarker(),
+                  ),
+              ],
+            ),
+            const RichAttributionWidget(
+              attributions: [TextSourceAttribution('OpenStreetMap contributors')],
+            ),
+          ],
+        ),
+        Positioned(
+          top: 12,
+          right: 12,
+          child: Column(
+            children: [
+              _MapActionButton(icon: Icons.my_location, onTap: _goToMyLocation),
+              const SizedBox(height: 8),
+              _MapActionButton(icon: Icons.refresh, onTap: _loadInstitutes),
+            ],
+          ),
+        ),
+        if (widget._hasInspectorLocation)
+          Positioned(
+            left: 12,
+            bottom: 12,
+            child: Material(
+              color: AppColors.surface,
+              elevation: 2,
+              borderRadius: BorderRadius.circular(20),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () => setState(() => _restrictToRadius = !_restrictToRadius),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(_restrictToRadius ? Icons.public : Icons.gps_fixed,
+                          size: 16, color: AppColors.primary),
+                      const SizedBox(width: 6),
+                      Text(
+                        _restrictToRadius
+                            ? 'Show All Institutes'
+                            : 'Show ${widget.radiusKm.toStringAsFixed(0)} km Only',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _InspectorMarker extends StatelessWidget {
+  const _InspectorMarker();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        shape: BoxShape.circle,
+        border: Border.all(color: AppColors.secondary, width: 2),
+        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+      ),
+      padding: const EdgeInsets.all(6),
+      child: const Icon(Icons.person_pin_circle, color: AppColors.secondary, size: 26),
+    );
+  }
+}
+
+class _MapActionButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _MapActionButton({required this.icon, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface,
+      shape: const CircleBorder(),
+      elevation: 2,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Icon(icon, size: 20, color: AppColors.primary),
+        ),
+      ),
+    );
+  }
+}
+
+class _InstituteDetailsSheet extends StatelessWidget {
+  final InstituteMapPoint institute;
+  final bool showScheme;
+  const _InstituteDetailsSheet({required this.institute, required this.showScheme});
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(institute.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 10),
+            if (institute.address != null && institute.address!.trim().isNotEmpty)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.place_outlined, size: 18, color: AppColors.textSecondary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(institute.address!,
+                        style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                  ),
+                ],
+              ),
+            if (showScheme && institute.schemeType != null) ...[
+              const SizedBox(height: 12),
+              StatusBadge(label: institute.schemeType!.label, color: AppColors.secondary),
+            ],
+            if (institute.registrationNumber != null && institute.registrationNumber!.trim().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text('Registration No: ${institute.registrationNumber}',
+                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            ],
+            const SizedBox(height: 16),
+            Text(
+              'Lat: ${institute.latitude.toStringAsFixed(5)}, Lng: ${institute.longitude.toStringAsFixed(5)}',
+              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

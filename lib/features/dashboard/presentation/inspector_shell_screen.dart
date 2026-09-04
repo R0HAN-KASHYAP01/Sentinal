@@ -1,7 +1,8 @@
+// FILE: lib/features/dashboard/presentation/inspector_shell_screen.dart
 import 'package:flutter/material.dart';
 import 'inspector_home_screen.dart';
+import 'inspector_profile_screen.dart';
 import '../../../core/widgets/module_placeholder_screen.dart';
-import '../../../core/widgets/profile_placeholder_screen.dart';
 
 class InspectorShellScreen extends StatefulWidget {
   const InspectorShellScreen({super.key});
@@ -23,7 +24,7 @@ class _InspectorShellScreenState extends State<InspectorShellScreen> {
       title: 'Inspection Workflow',
       message: 'Inspection Workflow — coming in the next phase.',
     ),
-    ProfilePlaceholderScreen(),
+    InspectorProfileScreen(),
   ];
 
   @override
