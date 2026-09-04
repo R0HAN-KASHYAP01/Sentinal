@@ -7,6 +7,7 @@ import '../features/auth/presentation/role_selection_screen.dart';
 import '../features/dashboard/presentation/official_shell_screen.dart';
 import '../features/dashboard/presentation/inspector_shell_screen.dart';
 import '../features/dashboard/presentation/inspector_profile_screen.dart';
+import '../features/dashboard/presentation/pmu_monitoring_screen.dart';
 import '../features/ngo/presentation/ngo_dashboard_screen.dart';
 import '../features/ngo/presentation/ngo_profile_screen.dart';
 import '../features/ngo/presentation/attendance_screen.dart';
@@ -15,6 +16,7 @@ import '../features/ngo/presentation/camera_screen.dart';
 import '../features/map/presentation/institute_map_screen.dart';
 import '../core/widgets/module_placeholder_screen.dart';
 import '../features/projects/presentation/project_list_screen.dart';
+import '../features/schemes/presentation/schemes_screen.dart';
 
 class AppRoutes {
   AppRoutes._();
@@ -41,6 +43,11 @@ class AppRoutes {
   static const String analyticsPlaceholder = '/analytics';
   static const String assignmentsPlaceholder = '/assignments';
   static const String inspectionWorkflowPlaceholder = '/inspection-workflow';
+
+  static const String schemes = '/schemes';
+
+  static const String pmuMonitoring = '/pmu-monitoring';
+  static const String rvcPlaceholder = '/rvc';
 
   static Map<String, WidgetBuilder> get routes => {
         splash: (context) => const SplashScreen(),
@@ -79,6 +86,14 @@ class AppRoutes {
         inspectionWorkflowPlaceholder: (context) => const ModulePlaceholderScreen(
               title: 'Inspection Workflow',
               message: 'Inspection Workflow — coming in the next phase.',
+            ),
+
+        schemes: (context) => const SchemesScreen(),
+
+        pmuMonitoring: (context) => const PmuMonitoringScreen(),
+        rvcPlaceholder: (context) => const ModulePlaceholderScreen(
+              title: 'RVC',
+              message: 'Remote Video Conferencing will be implemented in a later phase.',
             ),
       };
 }
