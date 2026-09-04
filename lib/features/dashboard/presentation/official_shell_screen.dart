@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'official_home_screen.dart';
-import '../../../core/widgets/module_placeholder_screen.dart';
+import 'pmu_monitoring_screen.dart';
 import '../../../core/widgets/profile_placeholder_screen.dart';
+import '../../schemes/presentation/schemes_screen.dart';
 
 class OfficialShellScreen extends StatefulWidget {
   const OfficialShellScreen({super.key});
@@ -15,14 +16,8 @@ class _OfficialShellScreenState extends State<OfficialShellScreen> {
 
   final _screens = const [
     OfficialHomeScreen(),
-    ModulePlaceholderScreen(
-      title: 'Projects',
-      message: 'Projects module will be implemented in a later phase.',
-    ),
-    ModulePlaceholderScreen(
-      title: 'Inspections',
-      message: 'Inspections module will be implemented in a later phase.',
-    ),
+    SchemesScreen(),
+    PmuMonitoringScreen(),
     ProfilePlaceholderScreen(),
   ];
 
@@ -35,9 +30,9 @@ class _OfficialShellScreenState extends State<OfficialShellScreen> {
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.apartment_outlined), selectedIcon: Icon(Icons.apartment), label: 'Projects'),
-          NavigationDestination(icon: Icon(Icons.fact_check_outlined), selectedIcon: Icon(Icons.fact_check), label: 'Inspections'),
-          NavigationDestination(icon: Icon(Icons.more_horiz), selectedIcon: Icon(Icons.more_horiz), label: 'More'),
+          NavigationDestination(icon: Icon(Icons.account_balance_outlined), selectedIcon: Icon(Icons.account_balance), label: 'Schemes'),
+          NavigationDestination(icon: Icon(Icons.groups_outlined), selectedIcon: Icon(Icons.groups), label: 'PMU'),
+          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
     );
