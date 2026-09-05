@@ -1,8 +1,7 @@
+// FILE: lib/features/ngo/presentation/ngo_dashboard_screen.dart
+
 import 'package:flutter/material.dart';
-import '../../../core/widgets/dashboard_header.dart';
-import '../../../core/widgets/section_header.dart';
-import '../../../core/widgets/quick_action_card.dart';
-import '../../../core/widgets/summary_stat_card.dart';
+
 import '../../../services/session_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/ngo_reports_service.dart';
@@ -20,6 +19,31 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
   int? _reportsCount;
   int? _feedsCount;
   bool _loadingStats = true;
+  int _selectedBottomNav = 0;
+
+  // ============================================================
+  // COLORS
+  // ============================================================
+
+  static const Color navy = Color(0xFF123E68);
+  static const Color darkBlue = Color(0xFF0D4778);
+
+  // Main blue-grey background
+  static const Color background = Color(0xFFEAF1F6);
+
+  // Blue-grey cards
+  static const Color cardBackground = Color(0xFFE4EDF3);
+
+  // Slightly lighter blue-grey for icon containers
+  static const Color softBlueGrey = Color(0xFFDCE8F0);
+
+  static const Color green = Color(0xFF159447);
+  static const Color orange = Color(0xFFF5A623);
+  static const Color borderColor = Color(0xFFD3E0E8);
+
+  // ============================================================
+  // INIT
+  // ============================================================
 
   @override
   void initState() {
@@ -27,14 +51,31 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
     _loadStats();
   }
 
+  // ============================================================
+  // LOAD STATS
+  // ============================================================
+
   Future<void> _loadStats() async {
     final user = SessionService.instance.currentUser;
-    if (user == null) return;
+
+    if (user == null) {
+      if (mounted) {
+        setState(() {
+          _loadingStats = false;
+        });
+      }
+      return;
+    }
 
     try {
-      final reports = await NgoReportsService.instance.fetchReports(user.id);
-      final feeds = await NgoCameraService.instance.fetchFeeds(user.id);
+      final reports =
+          await NgoReportsService.instance.fetchReports(user.id);
+
+      final feeds =
+          await NgoCameraService.instance.fetchFeeds(user.id);
+
       if (!mounted) return;
+
       setState(() {
         _reportsCount = reports.length;
         _feedsCount = feeds.length;
@@ -42,101 +83,1178 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _loadingStats = false);
+
+      setState(() {
+        _loadingStats = false;
+      });
     }
   }
 
+  // ============================================================
+  // LOGOUT
+  // ============================================================
+
   Future<void> _handleLogout() async {
     await AuthService.instance.logout();
+
     SessionService.instance.clear();
+
     if (!mounted) return;
-    Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
+
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      AppRoutes.login,
+      (route) => false,
+    );
   }
+
+  // ============================================================
+  // NOTIFICATION
+  // ============================================================
+
+  void _showNotifications() {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('You have 2 new notifications'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+  }
+
+  // ============================================================
+  // GREETING
+  // ============================================================
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+
+    if (hour < 12) {
+      return 'Good morning,';
+    } else if (hour < 17) {
+      return 'Good afternoon,';
+    } else {
+      return 'Good evening,';
+    }
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
     final user = SessionService.instance.currentUser;
 
-    return Scaffold(
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _loadStats,
-          child: ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              DashboardHeader(
-                greeting: 'Welcome',
-                userName: user?.name ?? 'NGO / Institute',
-                onNotificationTap: () {},
-                onLogoutTap: _handleLogout,
-              ),
-              const SizedBox(height: 24),
+    final userName =
+        user?.name.isNotEmpty == true ? user!.name : 'Uday';
 
-              const SectionHeader(title: 'Quick Actions'),
-              const SizedBox(height: 12),
-              GridView.count(
-                crossAxisCount: 3,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 0.95,
-                children: [
-                  QuickActionCard(
-                    icon: Icons.groups_outlined,
-                    label: 'Daily Attendance',
-                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.ngoAttendance),
+    return Scaffold(
+      backgroundColor: background,
+
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ====================================================
+            // MAIN CONTENT
+            // ====================================================
+
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _loadStats,
+                color: darkBlue,
+                backgroundColor: Colors.white,
+
+                child: ListView(
+                  physics:
+                      const AlwaysScrollableScrollPhysics(),
+
+                  padding: EdgeInsets.zero,
+
+                  children: [
+                    _buildTopHeader(userName),
+
+                    const SizedBox(height: 12),
+
+                    _buildGovernmentBanner(),
+
+                    const SizedBox(height: 18),
+
+                    _buildTodayStatus(),
+
+                    const SizedBox(height: 20),
+
+                    _buildQuickStatus(),
+
+                    const SizedBox(height: 20),
+
+                    _buildTodayOverview(),
+
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            ),
+
+            // ====================================================
+            // BOTTOM NAVIGATION
+            // ====================================================
+
+            _buildBottomNavigation(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // TOP HEADER
+  // ============================================================
+
+  Widget _buildTopHeader(String userName) {
+    return Container(
+      width: double.infinity,
+
+      padding: const EdgeInsets.fromLTRB(
+        20,
+        17,
+        18,
+        18,
+      ),
+
+      decoration: const BoxDecoration(
+        color: darkBlue,
+
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(22),
+          bottomRight: Radius.circular(22),
+        ),
+      ),
+
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.center,
+
+        children: [
+          // PROFILE CIRCLE
+          Container(
+            width: 55,
+            height: 55,
+
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+
+            child: const Icon(
+              Icons.person_rounded,
+              size: 34,
+              color: darkBlue,
+            ),
+          ),
+
+          const SizedBox(width: 13),
+
+          // USER INFORMATION
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+
+              children: [
+                Text(
+                  _getGreeting(),
+
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
                   ),
-                  QuickActionCard(
-                    icon: Icons.description_outlined,
-                    label: 'Reports',
-                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.ngoReports),
+                ),
+
+                const SizedBox(height: 2),
+
+                Text(
+                  userName,
+
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
                   ),
-                  QuickActionCard(
-                    icon: Icons.videocam_outlined,
-                    label: 'Camera / Video',
-                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.ngoCamera),
+                ),
+
+                const SizedBox(height: 2),
+
+                const Text(
+                  'NGO / Institute',
+
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
                   ),
-                  QuickActionCard(
-                    icon: Icons.badge_outlined,
-                    label: 'Institute Profile',
-                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.ngoProfile),
+                ),
+              ],
+            ),
+          ),
+
+          // NOTIFICATION
+          Stack(
+            clipBehavior: Clip.none,
+
+            children: [
+              IconButton(
+                onPressed: _showNotifications,
+
+                icon: const Icon(
+                  Icons.notifications_none_rounded,
+                  color: Colors.white,
+                  size: 31,
+                ),
+              ),
+
+              Positioned(
+                right: 5,
+                top: 2,
+
+                child: Container(
+                  width: 19,
+                  height: 19,
+
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+
+                    border: Border.all(
+                      color: darkBlue,
+                      width: 2,
+                    ),
+                  ),
+
+                  child: const Center(
+                    child: Text(
+                      '2',
+
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // GOVERNMENT BANNER
+  // ============================================================
+
+  Widget _buildGovernmentBanner() {
+    return Padding(
+      padding:
+          const EdgeInsets.symmetric(horizontal: 18),
+
+      child: Container(
+        height: 82,
+
+        padding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 10,
+        ),
+
+        decoration: BoxDecoration(
+          color: Colors.white,
+
+          borderRadius:
+              BorderRadius.circular(10),
+
+          border: Border.all(
+            color: const Color(0xFFE0E8EE),
+          ),
+
+          boxShadow: [
+            BoxShadow(
+              color:
+                  Colors.black.withOpacity(0.035),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+
+        child: Row(
+          children: [
+            // LEFT TEXT
+            Expanded(
+              flex: 6,
+
+              child: Column(
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
+
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+
+                children: const [
+                  Text(
+                    "Let's build a stronger,",
+
+                    style: TextStyle(
+                      color: navy,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+
+                  Text(
+                    "more inclusive society",
+
+                    style: TextStyle(
+                      color: navy,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ],
               ),
+            ),
 
-              const SizedBox(height: 24),
-              const SectionHeader(title: 'Overview'),
-              const SizedBox(height: 12),
-              _loadingStats
-                  ? const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      child: Center(child: CircularProgressIndicator(strokeWidth: 2.4)),
-                    )
-                  : Row(
-                      children: [
-                        Expanded(
-                          child: SummaryStatCard(
-                            icon: Icons.description_outlined,
-                            label: 'Reports Submitted',
-                            count: '${_reportsCount ?? 0}',
-                            onTap: () => Navigator.of(context).pushNamed(AppRoutes.ngoReports),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: SummaryStatCard(
-                            icon: Icons.videocam_outlined,
-                            label: 'Camera Feeds',
-                            count: '${_feedsCount ?? 0}',
-                            onTap: () => Navigator.of(context).pushNamed(AppRoutes.ngoCamera),
-                          ),
-                        ),
-                      ],
+            // TRICOLOR LINES
+            Expanded(
+              flex: 4,
+
+              child: Stack(
+                alignment: Alignment.center,
+
+                children: [
+                  Positioned(
+                    bottom: 11,
+                    left: 0,
+                    right: 0,
+
+                    child: Container(
+                      height: 4,
+
+                      decoration: BoxDecoration(
+                        borderRadius:
+                            BorderRadius.circular(10),
+
+                        color:
+                            const Color(0xFFFFC66D),
+                      ),
                     ),
+                  ),
+
+                  Positioned(
+                    bottom: 6,
+                    left: 18,
+                    right: 4,
+
+                    child: Container(
+                      height: 4,
+
+                      decoration: BoxDecoration(
+                        borderRadius:
+                            BorderRadius.circular(10),
+
+                        color:
+                            const Color(0xFF54B96B),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // RIGHT TEXT
+            Expanded(
+              flex: 4,
+
+              child: Column(
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
+
+                children: const [
+                  Text(
+                    'Government',
+
+                    textAlign:
+                        TextAlign.center,
+
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+
+                  Text(
+                    'for a Brighter',
+
+                    textAlign:
+                        TextAlign.center,
+
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+
+                  Text(
+                    'Tomorrow',
+
+                    textAlign:
+                        TextAlign.center,
+
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // TODAY'S STATUS
+  // ============================================================
+
+  Widget _buildTodayStatus() {
+    return Padding(
+      padding:
+          const EdgeInsets.symmetric(horizontal: 18),
+
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+
+        children: [
+          _buildSectionTitle(
+            'Today’s Status',
+            showViewAll: true,
+          ),
+
+          const SizedBox(height: 4),
+
+          const Row(
+            children: [
+              Icon(
+                Icons.access_time_rounded,
+                size: 14,
+                color: Colors.grey,
+              ),
+
+              SizedBox(width: 4),
+
+              Text(
+                'Thu, 03 Sep 2026',
+
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatusCard(
+                  icon: Icons.groups_rounded,
+                  iconColor: green,
+                  title: 'Attendance',
+                  bottomText: 'Submitted',
+                  bottomColor: green,
+                  showCheck: true,
+                ),
+              ),
+
+              const SizedBox(width: 9),
+
+              Expanded(
+                child: _buildStatusCard(
+                  icon: Icons.description_rounded,
+                  iconColor: darkBlue,
+                  title: 'Reports',
+                  bottomText:
+                      '${_reportsCount ?? 2} Submitted',
+                  bottomColor: green,
+                  showCheck: true,
+                ),
+              ),
+
+              const SizedBox(width: 9),
+
+              Expanded(
+                child: _buildStatusCard(
+                  icon: Icons.videocam_rounded,
+                  iconColor: orange,
+                  title: 'Camera Feeds',
+                  bottomText:
+                      '${_feedsCount ?? 1} Online',
+                  bottomColor: green,
+                  showCheck: true,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // STATUS CARD
+  // ============================================================
+
+  Widget _buildStatusCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String bottomText,
+    required Color bottomColor,
+    bool showCheck = false,
+  }) {
+    return Container(
+      height: 108,
+
+      padding: const EdgeInsets.symmetric(
+        horizontal: 7,
+        vertical: 10,
+      ),
+
+      decoration: BoxDecoration(
+        color: cardBackground,
+
+        borderRadius:
+            BorderRadius.circular(9),
+
+        border: Border.all(
+          color: borderColor,
+        ),
+
+        boxShadow: [
+          BoxShadow(
+            color:
+                Colors.black.withOpacity(0.025),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+
+      child: Column(
+        mainAxisAlignment:
+            MainAxisAlignment.center,
+
+        children: [
+          Container(
+            width: 39,
+            height: 39,
+
+            decoration: BoxDecoration(
+              color: softBlueGrey,
+
+              borderRadius:
+                  BorderRadius.circular(11),
+            ),
+
+            child: Icon(
+              icon,
+              size: 26,
+              color: iconColor,
+            ),
+          ),
+
+          const SizedBox(height: 7),
+
+          Text(
+            title,
+
+            textAlign: TextAlign.center,
+
+            maxLines: 1,
+            overflow:
+                TextOverflow.ellipsis,
+
+            style: const TextStyle(
+              color: navy,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+
+          const SizedBox(height: 5),
+
+          Row(
+            mainAxisAlignment:
+                MainAxisAlignment.center,
+
+            children: [
+              if (showCheck) ...[
+                Icon(
+                  Icons.check_circle_rounded,
+                  color: bottomColor,
+                  size: 13,
+                ),
+
+                const SizedBox(width: 3),
+              ],
+
+              Flexible(
+                child: Text(
+                  bottomText,
+
+                  textAlign:
+                      TextAlign.center,
+
+                  maxLines: 1,
+
+                  overflow:
+                      TextOverflow.ellipsis,
+
+                  style: TextStyle(
+                    color: bottomColor,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // QUICK STATUS
+  // ============================================================
+
+  Widget _buildQuickStatus() {
+    return Padding(
+      padding:
+          const EdgeInsets.symmetric(horizontal: 18),
+
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+
+        children: [
+          _buildSectionTitle('Quick Status'),
+
+          const SizedBox(height: 12),
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildQuickCard(
+                  icon: Icons.groups_rounded,
+                  title: 'Daily Attendance',
+
+                  onTap: () {
+                    Navigator.of(context).pushNamed(
+                      AppRoutes.ngoAttendance,
+                    );
+                  },
+                ),
+              ),
+
+              const SizedBox(width: 10),
+
+              Expanded(
+                child: _buildQuickCard(
+                  icon: Icons.description_rounded,
+                  title: 'Reports',
+
+                  onTap: () {
+                    Navigator.of(context).pushNamed(
+                      AppRoutes.ngoReports,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildQuickCard(
+                  icon: Icons.videocam_rounded,
+                  title: 'Camera / Video',
+
+                  onTap: () {
+                    Navigator.of(context).pushNamed(
+                      AppRoutes.ngoCamera,
+                    );
+                  },
+                ),
+              ),
+
+              const SizedBox(width: 10),
+
+              Expanded(
+                child: _buildQuickCard(
+                  icon: Icons.business_rounded,
+                  title: 'Institute Profile',
+
+                  onTap: () async {
+                    // Profile screen se wapas aane ke baad
+                    // Home tab automatically selected hoga.
+                    await Navigator.of(context).pushNamed(
+                      AppRoutes.ngoProfile,
+                    );
+
+                    if (!mounted) return;
+
+                    setState(() {
+                      _selectedBottomNav = 0;
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // QUICK CARD
+  // ============================================================
+
+  Widget _buildQuickCard({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+
+      borderRadius:
+          BorderRadius.circular(9),
+
+      child: InkWell(
+        onTap: onTap,
+
+        borderRadius:
+            BorderRadius.circular(9),
+
+        child: Container(
+          height: 86,
+
+          decoration: BoxDecoration(
+            color: cardBackground,
+
+            borderRadius:
+                BorderRadius.circular(9),
+
+            border: Border.all(
+              color: borderColor,
+            ),
+
+            boxShadow: [
+              BoxShadow(
+                color:
+                    Colors.black.withOpacity(0.025),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+
+          child: Column(
+            mainAxisAlignment:
+                MainAxisAlignment.center,
+
+            children: [
+              Icon(
+                icon,
+                size: 31,
+                color: darkBlue,
+              ),
+
+              const SizedBox(height: 8),
+
+              Text(
+                title,
+
+                textAlign:
+                    TextAlign.center,
+
+                style: const TextStyle(
+                  color: navy,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // TODAY'S OVERVIEW
+  // ============================================================
+
+  Widget _buildTodayOverview() {
+    return Padding(
+      padding:
+          const EdgeInsets.symmetric(horizontal: 18),
+
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+
+        children: [
+          _buildSectionTitle(
+            'Today’s Overview',
+          ),
+
+          const SizedBox(height: 12),
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildOverviewCard(
+                  icon: Icons.groups_rounded,
+                  iconColor: green,
+                  number: '45',
+                  label: 'Beneficiaries\npresent',
+                ),
+              ),
+
+              const SizedBox(width: 9),
+
+              Expanded(
+                child: _buildOverviewCard(
+                  icon: Icons.badge_rounded,
+                  iconColor: darkBlue,
+                  number: '10',
+                  label: 'Staff present',
+                ),
+              ),
+
+              const SizedBox(width: 9),
+
+              Expanded(
+                child: _buildOverviewCard(
+                  icon: Icons.description_rounded,
+                  iconColor: darkBlue,
+                  number:
+                      '${_reportsCount ?? 2}',
+                  label: 'Reports\nsubmitted',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // OVERVIEW CARD
+  // ============================================================
+
+  Widget _buildOverviewCard({
+    required IconData icon,
+    required Color iconColor,
+    required String number,
+    required String label,
+  }) {
+    return Container(
+      height: 105,
+
+      padding: const EdgeInsets.fromLTRB(
+        10,
+        10,
+        7,
+        8,
+      ),
+
+      decoration: BoxDecoration(
+        color: cardBackground,
+
+        borderRadius:
+            BorderRadius.circular(9),
+
+        border: Border.all(
+          color: borderColor,
+        ),
+
+        boxShadow: [
+          BoxShadow(
+            color:
+                Colors.black.withOpacity(0.025),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+
+        children: [
+          Icon(
+            icon,
+            size: 22,
+            color: iconColor,
+          ),
+
+          const SizedBox(height: 5),
+
+          Text(
+            number,
+
+            style: const TextStyle(
+              color: navy,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+
+          const SizedBox(height: 1),
+
+          Text(
+            label,
+
+            style: const TextStyle(
+              color: Colors.grey,
+              fontSize: 9,
+              height: 1.2,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // SECTION TITLE
+  // ============================================================
+
+  Widget _buildSectionTitle(
+    String title, {
+    bool showViewAll = false,
+  }) {
+    return Row(
+      children: [
+        Text(
+          title,
+
+          style: const TextStyle(
+            color: navy,
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+
+        const Spacer(),
+
+        if (showViewAll)
+          GestureDetector(
+            onTap: () {
+              Navigator.of(context).pushNamed(
+                AppRoutes.ngoReports,
+              );
+            },
+
+            child: const Text(
+              'View all',
+
+              style: TextStyle(
+                color: Color(0xFF2A78B8),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // BOTTOM NAVIGATION
+  // ============================================================
+
+  Widget _buildBottomNavigation() {
+    return Container(
+      height: 67,
+
+      decoration: BoxDecoration(
+        color: Colors.white,
+
+        border: Border(
+          top: BorderSide(
+            color: Colors.grey.shade200,
+          ),
+        ),
+
+        boxShadow: [
+          BoxShadow(
+            color:
+                Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildNavItem(
+              index: 0,
+              icon: Icons.home_rounded,
+              label: 'Home',
+            ),
+          ),
+
+          Expanded(
+            child: _buildNavItem(
+              index: 1,
+              icon: Icons.checklist_rounded,
+              label: 'Tasks',
+            ),
+          ),
+
+          Expanded(
+            child: _buildNavItem(
+              index: 2,
+              icon: Icons.person_rounded,
+              label: 'Profile',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // NAV ITEM
+  // ============================================================
+
+  Widget _buildNavItem({
+    required int index,
+    required IconData icon,
+    required String label,
+  }) {
+    final bool selected =
+        _selectedBottomNav == index;
+
+    return InkWell(
+      onTap: () async {
+        if (index == 0) {
+          setState(() {
+            _selectedBottomNav = 0;
+          });
+
+          return;
+        }
+
+        if (index == 1) {
+          setState(() {
+            _selectedBottomNav = 1;
+          });
+
+          await Navigator.of(context).pushNamed(
+            AppRoutes.ngoReports,
+          );
+
+          if (!mounted) return;
+
+          // Reports/Tasks se wapas aane par
+          // Home selected rahega.
+          setState(() {
+            _selectedBottomNav = 0;
+          });
+
+          return;
+        }
+
+        if (index == 2) {
+          setState(() {
+            _selectedBottomNav = 2;
+          });
+
+          await Navigator.of(context).pushNamed(
+            AppRoutes.ngoProfile,
+          );
+
+          if (!mounted) return;
+
+          // Profile se back aate hi Home blue hoga.
+          setState(() {
+            _selectedBottomNav = 0;
+          });
+
+          return;
+        }
+      },
+
+      child: Column(
+        mainAxisAlignment:
+            MainAxisAlignment.center,
+
+        children: [
+          Icon(
+            icon,
+            size: 27,
+
+            color: selected
+                ? darkBlue
+                : const Color(0xFF6B7785),
+          ),
+
+          const SizedBox(height: 3),
+
+          Text(
+            label,
+
+            style: TextStyle(
+              color: selected
+                  ? darkBlue
+                  : const Color(0xFF6B7785),
+
+              fontSize: 10,
+
+              fontWeight: selected
+                  ? FontWeight.w800
+                  : FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
