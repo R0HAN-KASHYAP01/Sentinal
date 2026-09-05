@@ -71,6 +71,16 @@ class ProjectDetailsScreen extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.apartment, color: AppColors.primary, size: 28),
+                ),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -78,18 +88,18 @@ class ProjectDetailsScreen extends StatelessWidget {
                       Text(project.name, style: Theme.of(context).textTheme.headlineMedium),
                       const SizedBox(height: 2),
                       Text(project.id, style: Theme.of(context).textTheme.bodyMedium),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          StatusChip(status: project.status),
+                          RiskChip(risk: project.riskLevel),
+                        ],
+                      ),
                     ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                StatusChip(status: project.status),
-                RiskChip(risk: project.riskLevel),
               ],
             ),
 

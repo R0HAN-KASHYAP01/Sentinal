@@ -53,40 +53,46 @@ class InspectorHomeScreen extends StatelessWidget {
 
             const SizedBox(height: 24),
 
-            GridView.count(
-              crossAxisCount: 4,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              childAspectRatio: 0.95,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SummaryStatCard(
-                  icon: Icons.today,
-                  label: 'Today',
-                  count: '3',
-                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.assignmentsPlaceholder),
+                Expanded(
+                  child: SummaryStatCard(
+                    icon: Icons.today,
+                    label: 'Today',
+                    count: '3',
+                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.assignmentsPlaceholder),
+                  ),
                 ),
-                SummaryStatCard(
-                  icon: Icons.error_outline,
-                  label: 'Overdue',
-                  count: '1',
-                  accentColor: Colors.red,
-                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.assignmentsPlaceholder),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SummaryStatCard(
+                    icon: Icons.error_outline,
+                    label: 'Overdue',
+                    count: '1',
+                    accentColor: Colors.red,
+                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.assignmentsPlaceholder),
+                  ),
                 ),
-                SummaryStatCard(
-                  icon: Icons.upcoming_outlined,
-                  label: 'Upcoming',
-                  count: '5',
-                  accentColor: Colors.orange,
-                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.assignmentsPlaceholder),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SummaryStatCard(
+                    icon: Icons.upcoming_outlined,
+                    label: 'Upcoming',
+                    count: '5',
+                    accentColor: Colors.orange,
+                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.assignmentsPlaceholder),
+                  ),
                 ),
-                SummaryStatCard(
-                  icon: Icons.check_circle_outline,
-                  label: 'Done',
-                  count: '18',
-                  accentColor: Colors.green,
-                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.assignmentsPlaceholder),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SummaryStatCard(
+                    icon: Icons.check_circle_outline,
+                    label: 'Done',
+                    count: '18',
+                    accentColor: Colors.green,
+                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.assignmentsPlaceholder),
+                  ),
                 ),
               ],
             ),
