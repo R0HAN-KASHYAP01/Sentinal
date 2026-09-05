@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../services/session_service.dart';
 import '../../../app/routes.dart';
 import '../../../core/widgets/dashboard_header.dart';
@@ -14,15 +15,29 @@ class OfficialHomeScreen extends StatelessWidget {
 
   void _logout(BuildContext context) {
     SessionService.instance.clear();
-    Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
+
+    Navigator.of(context)
+        .pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
   }
 
   String _todayLabel() {
     final now = DateTime.now();
+
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
+
     return '${now.day} ${months[now.month - 1]} ${now.year}';
   }
 
@@ -44,7 +59,6 @@ class OfficialHomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Primary stat — high-risk alerts get visual priority without alarming the whole screen.
             _AlertBanner(count: 3),
             const SizedBox(height: 16),
 
@@ -60,30 +74,39 @@ class OfficialHomeScreen extends StatelessWidget {
                   icon: Icons.today,
                   label: "Today's Inspections",
                   count: '6',
-                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.inspectionsPlaceholder),
+                  onTap: () =>
+                      Navigator.of(context)
+                          .pushNamed(AppRoutes.inspectionsPlaceholder),
                 ),
                 SummaryStatCard(
                   icon: Icons.rate_review_outlined,
                   label: 'Pending Reviews',
                   count: '9',
                   accentColor: Colors.orange,
-                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.inspectionsPlaceholder),
+                  onTap: () =>
+                      Navigator.of(context)
+                          .pushNamed(AppRoutes.inspectionsPlaceholder),
                 ),
                 SummaryStatCard(
                   icon: Icons.apartment,
                   label: 'Total Projects',
                   count: '42',
                   accentColor: Colors.indigo,
-                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.projectsPlaceholder),
+                  onTap: () =>
+                      Navigator.of(context)
+                          .pushNamed(AppRoutes.projectsPlaceholder),
                 ),
               ],
             ),
 
             const SizedBox(height: 28),
+
             SectionHeader(
               title: 'Recent Inspections',
               actionLabel: 'View all',
-              onActionTap: () => Navigator.of(context).pushNamed(AppRoutes.inspectionsPlaceholder),
+              onActionTap: () =>
+                  Navigator.of(context)
+                      .pushNamed(AppRoutes.inspectionsPlaceholder),
             ),
             const SizedBox(height: 10),
 
@@ -96,10 +119,12 @@ class OfficialHomeScreen extends StatelessWidget {
             else
               Column(
                 children: inspections
-                    .map((i) => Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: RecentInspectionCard(inspection: i),
-                        ))
+                    .map(
+                      (i) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: RecentInspectionCard(inspection: i),
+                      ),
+                    )
                     .toList(),
               ),
 
@@ -118,22 +143,30 @@ class OfficialHomeScreen extends StatelessWidget {
                 QuickActionCard(
                   icon: Icons.apartment,
                   label: 'Projects',
-                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.projectsPlaceholder),
+                  onTap: () =>
+                      Navigator.of(context)
+                          .pushNamed(AppRoutes.projectsPlaceholder),
                 ),
                 QuickActionCard(
                   icon: Icons.fact_check_outlined,
                   label: 'Inspections',
-                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.inspectionsPlaceholder),
+                  onTap: () =>
+                      Navigator.of(context)
+                          .pushNamed(AppRoutes.inspectionsPlaceholder),
                 ),
                 QuickActionCard(
                   icon: Icons.videocam_outlined,
                   label: 'CCTV',
-                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.cctvPlaceholder),
+                  onTap: () =>
+                      Navigator.of(context)
+                          .pushNamed(AppRoutes.cctvPlaceholder),
                 ),
                 QuickActionCard(
                   icon: Icons.bar_chart,
                   label: 'Analytics',
-                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.analyticsPlaceholder),
+                  onTap: () =>
+                      Navigator.of(context)
+                          .pushNamed(AppRoutes.analyticsPlaceholder),
                 ),
               ],
             ),
@@ -146,6 +179,7 @@ class OfficialHomeScreen extends StatelessWidget {
 
 class _AlertBanner extends StatelessWidget {
   final int count;
+
   const _AlertBanner({required this.count});
 
   @override
@@ -159,7 +193,11 @@ class _AlertBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded, color: Color(0xFFB3261E), size: 22),
+          const Icon(
+            Icons.warning_amber_rounded,
+            color: Color(0xFFB3261E),
+            size: 22,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
