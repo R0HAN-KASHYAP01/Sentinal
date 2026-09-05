@@ -1,24 +1,10 @@
 import 'package:flutter/material.dart';
-import 'signup_screen.dart';
+import '../../../core/widgets/primary_button.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/session_service.dart';
 import '../../../models/user.dart';
-import '../../dashboard/presentation/official_shell_screen.dart';
-import '../../dashboard/presentation/inspector_shell_screen.dart';
-import '../../ngo/presentation/ngo_shell_screen.dart';
-
-/// Login screen matching the "Official Smart Monitoring & Inspection System" design.
-///
-/// ASSETS REQUIRED (place these in your project and register in pubspec.yaml):
-///   assets/images/emblem.png       -> National Emblem of India (with "सत्यमेव जयते")
-///   assets/images/parliament.png   -> Parliament building silhouette
-///
-/// pubspec.yaml:
-///   flutter:
-///     assets:
-///       - assets/images/emblem.png
-///       - assets/images/parliament.png
-///
-/// Wire up `_handleLogin()` below to your existing AuthService.
+import '../../../app/routes.dart';
+import '../../../app/theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -29,339 +15,347 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _idController = TextEditingController(); // holds email
   final _passwordController = TextEditingController();
+
   bool _obscurePassword = true;
   bool _isLoading = false;
-
-  static const Color _navy = Color(0xFF1B3A6B);
-  static const Color _bgTop = Color(0xFFEEF3F8);
+  String? _errorMessage;
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _idController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
   Future<void> _handleLogin() async {
-    if (!_formKey.currentState!.validate()) return;
+    setState(() => _errorMessage = null);
+
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
     setState(() => _isLoading = true);
-    try {
-      final result = await AuthService.instance.login(
-        _emailController.text,
-        _passwordController.text,
-      );
 
-      if (!mounted) return;
+    final result = await AuthService.instance.login(
+      _idController.text,
+      _passwordController.text,
+    );
 
-      if (!result.success || result.user == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.errorMessage ?? 'Login failed.')),
-        );
-        return;
-      }
+    if (!mounted) return;
 
-      final user = result.user!;
-      Widget destination;
-      switch (user.role) {
-        case UserRole.official:
-          destination = const OfficialShellScreen();
-          break;
-        case UserRole.inspector:
-          destination = const InspectorShellScreen();
-          break;
-        case UserRole.ngoInstitute:
-          destination = const NgoShellScreen();
-          break;
-      }
+    setState(() => _isLoading = false);
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => destination),
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Login failed: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+    if (result.success && result.user != null) {
+      SessionService.instance.setUser(result.user!);
+
+      final destination = switch (result.user!.role) {
+        UserRole.official => AppRoutes.officialDashboard,
+        UserRole.inspector => AppRoutes.inspectorDashboard,
+        UserRole.ngoInstitute => AppRoutes.ngoDashboard,
+      };
+
+      Navigator.of(context).pushNamedAndRemoveUntil(destination, (route) => false);
+    } else {
+      setState(() => _errorMessage = result.errorMessage ?? 'Login failed.');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bgTop,
+      backgroundColor: AppColors.background,
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Column(
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // --- Header banner: emblem, title, decorative dome + tricolor ---
+              _HeaderBanner(),
+
+              // --- Login card, overlapping the banner ---
+              Transform.translate(
+                offset: const Offset(0, 5),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.fromLTRB(22, 18, 22, 16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.06),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          'Login',
+                          style: TextStyle(
+                              fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        ),
+                        const SizedBox(height: 1),
+                        const Text(
+                          'Access your account to continue',
+                          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(height: 10),
+
+                        _PillTextField(
+                          controller: _idController,
+                          hint: 'Email',
+                          keyboardType: TextInputType.emailAddress,
+                          prefixIcon: Icons.mail_outline,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter your email.';
+                            }
+                            if (!value.contains('@')) {
+                              return 'Please enter a valid email.';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 6),
+
+                        _PillTextField(
+                          controller: _passwordController,
+                          hint: 'Password',
+                          obscureText: _obscurePassword,
+                          prefixIcon: Icons.lock_outline,
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              size: 20,
+                              color: AppColors.textSecondary,
+                            ),
+                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your password.';
+                            }
+                            return null;
+                          },
+                        ),
+
+                        if (_errorMessage != null) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: AppColors.error.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.error_outline, size: 16, color: AppColors.error),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _errorMessage!,
+                                    style: const TextStyle(color: AppColors.error, fontSize: 12),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        const SizedBox(height: 10),
+
+                        PrimaryButton(
+                          label: _isLoading ? 'Logging in...' : 'Login',
+                          onPressed: _isLoading ? () {} : _handleLogin,
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            TextButton(onPressed: () {}, child: const Text('Forgot Password?')),
+                            const SizedBox(width: 8),
+                            TextButton(onPressed: () {}, child: const Text('Get Help')),
+                          ],
+                        ),
+                        Center(
+                          child: TextButton(
+                            onPressed: () => Navigator.of(context).pushNamed(AppRoutes.signup),
+                            child: RichText(
+                              text: const TextSpan(
+                                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                                children: [
+                                  TextSpan(text: "Don't have an account? "),
+                                  TextSpan(
+                                    text: 'Sign up',
+                                    style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // --- Footer ---
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 40, 0, 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _buildHeader(),
-                    _buildFormCard(),
-                    const SizedBox(height: 16),
-                    _buildFooter(),
-                    const SizedBox(height: 16),
+                    Icon(Icons.shield_outlined, size: 14, color: AppColors.textSecondary.withValues(alpha: 0.8)),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Secure  |  Transparent  |  Inclusive',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary.withValues(alpha: 0.8)),
+                    ),
                   ],
                 ),
               ),
-            );
-          },
+            ],
+          ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-      child: Column(
-        children: [
-          Image.asset(
-            'assets/images/emblem.png',
-            height: 72,
-            errorBuilder: (_, __, ___) =>
-                const Icon(Icons.account_balance, size: 64, color: _navy),
-          ),
-          const SizedBox(height: 14),
-          const Text(
-            'Official Smart Monitoring &\nInspection System',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: _navy,
-              height: 1.25,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Department of Social Justice & Empowerment\nGovernment of India',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 16),
-          Image.asset(
-            'assets/images/parliament.png',
-            height: 110,
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => Icon(
-              Icons.account_balance,
-              size: 90,
-              color: Colors.blueGrey[200],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFormCard() {
+/// Top banner: emblem, title/subtitle, and the Parliament + tricolor
+/// illustration, using the project's own asset images.
+class _HeaderBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
     return Container(
+      color: AppColors.background,
+      height: 520,
       width: double.infinity,
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Login',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: _navy,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Access your account to continue',
-              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 20),
-            _buildTextField(
-              controller: _emailController,
-              hint: 'Email',
-              icon: Icons.mail_outline,
-              keyboardType: TextInputType.emailAddress,
-              validator: (v) {
-                if (v == null || v.isEmpty) return 'Email is required';
-                if (!v.contains('@')) return 'Enter a valid email';
-                return null;
-              },
-            ),
-            const SizedBox(height: 14),
-            _buildTextField(
-              controller: _passwordController,
-              hint: 'Password',
-              icon: Icons.lock_outline,
-              obscureText: _obscurePassword,
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscurePassword
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  color: Colors.grey,
+      child: Stack(
+        alignment: Alignment.topCenter,
+        clipBehavior: Clip.hardEdge,
+        children: [
+          // Background layer: faded parliament illustration, full screen width.
+          Positioned(
+            top: 270,
+            left: 0,
+            right: 0,
+            child: Opacity(
+              opacity: 0.35,
+              child: SizedBox(
+                width: double.infinity,
+                height: 240,
+                child: Image.asset(
+                  'assets/images/parliament.png',
+                  fit: BoxFit.fitWidth,
+                  alignment: Alignment.topCenter,
                 ),
-                onPressed: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
               ),
-              validator: (v) {
-                if (v == null || v.isEmpty) return 'Password is required';
-                return null;
-              },
             ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _handleLogin,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _navy,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+          ),
+          // Foreground layer: emblem + title/subtitle text.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
+            child: Column(
+              children: [
+                Opacity(
+                  opacity: 0.85,
+                  child: Image.asset('assets/images/emblem.png', height: 120),
+                ),
+                const Text(
+                  'Official Smart Monitoring &\nInspection System',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                    height: 1.3,
                   ),
                 ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 22,
-                        width: 22,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2.5,
-                        ),
-                      )
-                    : const Text(
-                        'Login',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                TextButton(
-                  onPressed: () {
-                    // TODO: navigate to forgot password screen
-                  },
-                  child: const Text('Forgot Password?',
-                      style: TextStyle(color: _navy)),
+                const SizedBox(height: 6),
+                const Text(
+                  'Department of Social Justice & Empowerment',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
                 ),
-                const Text('|', style: TextStyle(color: Colors.grey)),
-                TextButton(
-                  onPressed: () {
-                    // TODO: navigate to help/support screen
-                  },
-                  child: const Text('Get Help', style: TextStyle(color: _navy)),
+                const Text(
+                  'Government of India',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text("Don't have an account? ",
-                      style: TextStyle(color: Colors.grey[700])),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const SignupScreen(),
-                        ),
-                      );
-                    },
-                    child: const Text(
-                      'Sign up',
-                      style: TextStyle(
-                        color: _navy,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
+}
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hint,
-    required IconData icon,
-    TextInputType? keyboardType,
-    bool obscureText = false,
-    Widget? suffixIcon,
-    String? Function(String?)? validator,
-  }) {
+/// Pill-shaped text field matching the reference design. Local to this
+/// screen only — the shared AppTextField (used on signup, etc.) is untouched.
+class _PillTextField extends StatelessWidget {
+  final TextEditingController controller;
+  final String hint;
+  final bool obscureText;
+  final IconData prefixIcon;
+  final Widget? suffixIcon;
+  final TextInputType? keyboardType;
+  final String? Function(String?)? validator;
+
+  const _PillTextField({
+    required this.controller,
+    required this.hint,
+    this.obscureText = false,
+    required this.prefixIcon,
+    this.suffixIcon,
+    this.keyboardType,
+    this.validator,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return TextFormField(
       controller: controller,
-      keyboardType: keyboardType,
       obscureText: obscureText,
+      keyboardType: keyboardType,
       validator: validator,
+      style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
       decoration: InputDecoration(
         hintText: hint,
-        prefixIcon: Icon(icon, color: Colors.grey),
+        hintStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+        prefixIcon: Icon(prefixIcon, size: 20, color: AppColors.textSecondary),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: Colors.grey[50],
-        contentPadding:
-            const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        fillColor: AppColors.background,
+        contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
+          borderRadius: BorderRadius.circular(28),
+          borderSide: const BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
+          borderRadius: BorderRadius.circular(28),
+          borderSide: const BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _navy, width: 1.5),
+          borderRadius: BorderRadius.circular(28),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(28),
+          borderSide: const BorderSide(color: AppColors.error),
         ),
       ),
-    );
-  }
-
-  Widget _buildFooter() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(Icons.verified_user_outlined, size: 14, color: Colors.grey[500]),
-        const SizedBox(width: 6),
-        Text(
-          'Secure  |  Transparent  |  Inclusive',
-          style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-        ),
-      ],
     );
   }
 }

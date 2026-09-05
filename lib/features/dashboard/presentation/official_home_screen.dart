@@ -48,33 +48,36 @@ class OfficialHomeScreen extends StatelessWidget {
             _AlertBanner(count: 3),
             const SizedBox(height: 16),
 
-            GridView.count(
-              crossAxisCount: 3,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 1.05,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SummaryStatCard(
-                  icon: Icons.today,
-                  label: "Today's Inspections",
-                  count: '6',
-                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.inspectionsPlaceholder),
+                Expanded(
+                  child: SummaryStatCard(
+                    icon: Icons.today,
+                    label: "Today's Inspections",
+                    count: '6',
+                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.inspectionsPlaceholder),
+                  ),
                 ),
-                SummaryStatCard(
-                  icon: Icons.rate_review_outlined,
-                  label: 'Pending Reviews',
-                  count: '9',
-                  accentColor: Colors.orange,
-                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.inspectionsPlaceholder),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SummaryStatCard(
+                    icon: Icons.rate_review_outlined,
+                    label: 'Pending Reviews',
+                    count: '9',
+                    accentColor: Colors.orange,
+                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.inspectionsPlaceholder),
+                  ),
                 ),
-                SummaryStatCard(
-                  icon: Icons.apartment,
-                  label: 'Total Projects',
-                  count: '42',
-                  accentColor: Colors.indigo,
-                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.projectsPlaceholder),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SummaryStatCard(
+                    icon: Icons.apartment,
+                    label: 'Total Projects',
+                    count: '42',
+                    accentColor: Colors.indigo,
+                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.projectsPlaceholder),
+                  ),
                 ),
               ],
             ),
@@ -107,33 +110,39 @@ class OfficialHomeScreen extends StatelessWidget {
             const SectionHeader(title: 'Quick Actions'),
             const SizedBox(height: 12),
 
-            GridView.count(
-              crossAxisCount: 4,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 0.85,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                QuickActionCard(
-                  icon: Icons.apartment,
-                  label: 'Projects',
-                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.projectsPlaceholder),
+                Expanded(
+                  child: QuickActionCard(
+                    icon: Icons.apartment,
+                    label: 'Projects',
+                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.projectsPlaceholder),
+                  ),
                 ),
-                QuickActionCard(
-                  icon: Icons.fact_check_outlined,
-                  label: 'Inspections',
-                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.inspectionsPlaceholder),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: QuickActionCard(
+                    icon: Icons.fact_check_outlined,
+                    label: 'Inspections',
+                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.inspectionsPlaceholder),
+                  ),
                 ),
-                QuickActionCard(
-                  icon: Icons.videocam_outlined,
-                  label: 'CCTV',
-                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.cctvPlaceholder),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: QuickActionCard(
+                    icon: Icons.videocam_outlined,
+                    label: 'CCTV',
+                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.cctvPlaceholder),
+                  ),
                 ),
-                QuickActionCard(
-                  icon: Icons.bar_chart,
-                  label: 'Analytics',
-                  onTap: () => Navigator.of(context).pushNamed(AppRoutes.analyticsPlaceholder),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: QuickActionCard(
+                    icon: Icons.bar_chart,
+                    label: 'Analytics',
+                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.analyticsPlaceholder),
+                  ),
                 ),
               ],
             ),
