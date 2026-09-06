@@ -35,7 +35,7 @@ class ProjectsRepository {
         .toList();
   }
 
-  /// Fetch one project/institute by profile ID.
+  /// Fetch one project/institute by Supabase profile ID.
   Future<Project?> getProjectById(String profileId) async {
     final response = await _client
         .from('ngo_institutes')
@@ -53,9 +53,11 @@ class ProjectsRepository {
   /// Convert a Supabase ngo_institutes row into the existing
   /// Project model.
   Project _mapRowToProject(Map<String, dynamic> row) {
+    final profileId = row['profile_id']?.toString();
+
     final id = _stringValue(
       row['registration_number'],
-      fallback: row['profile_id']?.toString() ?? 'Unknown',
+      fallback: profileId ?? 'Unknown',
     );
 
     final name = _stringValue(
@@ -80,6 +82,11 @@ class ProjectsRepository {
 
     return Project(
       id: id,
+
+      // Preserve the real Supabase identity separately from
+      // the display/registration identifier.
+      profileId: profileId,
+
       name: name,
       type: type,
       location: location,

@@ -1,3 +1,4 @@
+
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -8,7 +9,7 @@ import 'package:http/http.dart' as http;
 /// Current backend:
 /// http://127.0.0.1:8000
 ///
-/// This service currently reads attendance information.
+/// This service communicates with AI modules through HTTP.
 /// It does not run AI locally inside Flutter.
 class AiAttendanceService {
   /// FastAPI base URL.
@@ -60,7 +61,9 @@ class AiAttendanceService {
   ///
   /// Endpoint:
   /// GET /api/v1/attendance/{sessionId}
-  Future<Map<String, dynamic>> getAttendanceSession(String sessionId) async {
+  Future<Map<String, dynamic>> getAttendanceSession(
+    String sessionId,
+  ) async {
     final uri = Uri.parse('$baseUrl/api/v1/attendance/$sessionId');
 
     final response = await http.get(uri).timeout(requestTimeout);
@@ -85,6 +88,52 @@ class AiAttendanceService {
     return _handleResponse(response);
   }
 
+  /// Calculate project risk using the AI risk engine.
+  ///
+  /// Endpoint:
+  /// POST /api/v1/risk/calculate
+  ///
+  /// The payload can contain:
+  /// - attendance
+  /// - project
+  /// - inspections
+  ///
+  /// The method returns the complete risk response from FastAPI,
+  /// including:
+  /// - risk score
+  /// - risk level
+  /// - anomalies
+  /// - anomaly counts
+  /// - component scores
+  /// - explainable reasons
+  /// - aggregated features
+  Future<Map<String, dynamic>> calculateProjectRisk({
+    Map<String, dynamic>? attendance,
+    Map<String, dynamic>? project,
+    List<Map<String, dynamic>> inspections =
+        const <Map<String, dynamic>>[],
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/v1/risk/calculate');
+
+    final body = <String, dynamic>{
+      'attendance': attendance ?? <String, dynamic>{},
+      'project': project ?? <String, dynamic>{},
+      'inspections': inspections,
+    };
+
+    final response = await http
+        .post(
+          uri,
+          headers: <String, String>{
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(requestTimeout);
+
+    return _handleResponse(response);
+  }
+
   /// Check whether the AI backend is running.
   ///
   /// Endpoint:
@@ -102,6 +151,28 @@ class AiAttendanceService {
       final data = jsonDecode(response.body);
 
       return data is Map && data['status'] == 'healthy';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Check whether the Risk Engine API is running.
+  ///
+  /// Endpoint:
+  /// GET /api/v1/risk/health
+  Future<bool> isRiskEngineHealthy() async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/v1/risk/health');
+
+      final response = await http.get(uri).timeout(requestTimeout);
+
+      if (response.statusCode != 200) {
+        return false;
+      }
+
+      final data = jsonDecode(response.body);
+
+      return data is Map && data['status'] == 'ok';
     } catch (_) {
       return false;
     }
@@ -155,3 +226,4 @@ class AiAttendanceApiException implements Exception {
         '$message (HTTP $statusCode)';
   }
 }
+
