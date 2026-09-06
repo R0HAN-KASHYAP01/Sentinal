@@ -5,6 +5,7 @@ import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../models/assignment.dart';
 import '../data/arrival_verification_repository.dart';
+import '../data/assignments_repository.dart';
 import '../data/inspection_checklist_repository.dart';
 import '../data/inspection_evidence_repository.dart';
 import '../data/inspection_findings_repository.dart';
@@ -35,6 +36,8 @@ class _InspectionSummaryScreenState extends State<InspectionSummaryScreen> {
 
   final InspectionSubmissionRepository _submissionRepository =
       InspectionSubmissionRepository();
+
+  final AssignmentsRepository _assignmentsRepository = AssignmentsRepository();
 
   final TextEditingController _remarksController = TextEditingController();
 
@@ -260,6 +263,7 @@ class _InspectionSummaryScreenState extends State<InspectionSummaryScreen> {
           'Findings: ${_findings.length}. '
           'Risk level: ${_riskLevel.toUpperCase()}.';
 
+      // Step 1: Save the final inspection submission.
       await _submissionRepository.saveSubmission(
         assignmentId: widget.assignment.id,
         inspectorProfileId: inspectorProfileId,
@@ -270,11 +274,19 @@ class _InspectionSummaryScreenState extends State<InspectionSummaryScreen> {
         reportSummary: summary,
       );
 
+      // Step 2: Mark the assignment as completed only
+      // after the inspection submission has been saved.
+      await _assignmentsRepository.markAssignmentCompleted(
+        widget.assignment.id,
+      );
+
       if (!mounted) {
         return;
       }
 
-      _showMessage('Inspection submitted successfully.');
+      _showMessage(
+        'Inspection submitted and assignment completed successfully.',
+      );
 
       await Future<void>.delayed(const Duration(milliseconds: 700));
 
@@ -288,7 +300,7 @@ class _InspectionSummaryScreenState extends State<InspectionSummaryScreen> {
         return;
       }
 
-      _showMessage('Inspection could not be submitted: $error', isError: true);
+      _showMessage('Inspection could not be completed: $error', isError: true);
     } finally {
       if (mounted) {
         setState(() {
@@ -763,7 +775,7 @@ class _InspectionSummaryScreenState extends State<InspectionSummaryScreen> {
                 const SizedBox(height: 20),
                 PrimaryButton(
                   label: _isSubmitting
-                      ? 'Submitting Inspection...'
+                      ? 'Completing Inspection...'
                       : 'Submit Inspection',
                   onPressed: _isSubmitting ? () {} : _submitInspection,
                 ),

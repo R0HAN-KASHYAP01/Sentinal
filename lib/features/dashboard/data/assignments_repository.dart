@@ -2,8 +2,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../models/assignment.dart';
 
-/// Repository responsible for loading PMU inspection assignments
-/// from Supabase.
+/// Repository responsible for loading and updating PMU inspection
+/// assignments from Supabase.
 ///
 /// Main database table:
 /// pmu_assignments
@@ -90,6 +90,15 @@ class AssignmentsRepository {
           ? <String, Map<String, dynamic>>{}
           : <String, Map<String, dynamic>>{instituteProfileId!: institute},
     );
+  }
+
+  /// Mark an assignment as completed after the inspection
+  /// has been successfully submitted.
+  Future<void> markAssignmentCompleted(String assignmentId) async {
+    await _client
+        .from('pmu_assignments')
+        .update({'status': 'completed'})
+        .eq('id', assignmentId);
   }
 
   /// Convert a Supabase assignment row into the existing
