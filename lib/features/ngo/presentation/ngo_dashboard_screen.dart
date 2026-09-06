@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../services/session_service.dart';
-import '../../../services/auth_service.dart';
 import '../../../services/ngo_reports_service.dart';
 import '../../../services/ngo_camera_service.dart';
 import '../../../app/routes.dart';
@@ -19,7 +18,6 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
   int? _reportsCount;
   int? _feedsCount;
   bool _loadingStats = true;
-  int _selectedBottomNav = 0;
 
   // ============================================================
   // COLORS
@@ -91,23 +89,6 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
   }
 
   // ============================================================
-  // LOGOUT
-  // ============================================================
-
-  Future<void> _handleLogout() async {
-    await AuthService.instance.logout();
-
-    SessionService.instance.clear();
-
-    if (!mounted) return;
-
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      AppRoutes.login,
-      (route) => false,
-    );
-  }
-
-  // ============================================================
   // NOTIFICATION
   // ============================================================
 
@@ -141,6 +122,14 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
   // ============================================================
   // BUILD
   // ============================================================
+  //
+  // NOTE: This screen is rendered as a TAB PAGE inside
+  // NgoShellScreen's IndexedStack. It must NOT return its own
+  // Scaffold or bottom navigation bar — NgoShellScreen already
+  // owns the Scaffold + NavigationBar for Home/Tasks/Profile.
+  // Returning a second Scaffold/bottom-nav here was causing two
+  // bottom nav bars to render stacked on top of each other.
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -149,59 +138,42 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
     final userName =
         user?.name.isNotEmpty == true ? user!.name : 'Uday';
 
-    return Scaffold(
-      backgroundColor: background,
+    return Container(
+      color: background,
+      child: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          onRefresh: _loadStats,
+          color: darkBlue,
+          backgroundColor: Colors.white,
 
-      body: SafeArea(
-        child: Column(
-          children: [
-            // ====================================================
-            // MAIN CONTENT
-            // ====================================================
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
 
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: _loadStats,
-                color: darkBlue,
-                backgroundColor: Colors.white,
+            padding: EdgeInsets.zero,
 
-                child: ListView(
-                  physics:
-                      const AlwaysScrollableScrollPhysics(),
+            children: [
+              _buildTopHeader(userName),
 
-                  padding: EdgeInsets.zero,
+              const SizedBox(height: 12),
 
-                  children: [
-                    _buildTopHeader(userName),
+              _buildGovernmentBanner(),
 
-                    const SizedBox(height: 12),
+              const SizedBox(height: 18),
 
-                    _buildGovernmentBanner(),
+              _buildTodayStatus(),
 
-                    const SizedBox(height: 18),
+              const SizedBox(height: 20),
 
-                    _buildTodayStatus(),
+              _buildQuickStatus(),
 
-                    const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-                    _buildQuickStatus(),
+              _buildTodayOverview(),
 
-                    const SizedBox(height: 20),
-
-                    _buildTodayOverview(),
-
-                    const SizedBox(height: 24),
-                  ],
-                ),
-              ),
-            ),
-
-            // ====================================================
-            // BOTTOM NAVIGATION
-            // ====================================================
-
-            _buildBottomNavigation(),
-          ],
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
     );
@@ -822,18 +794,10 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
                   icon: Icons.business_rounded,
                   title: 'Institute Profile',
 
-                  onTap: () async {
-                    // Profile screen se wapas aane ke baad
-                    // Home tab automatically selected hoga.
-                    await Navigator.of(context).pushNamed(
+                  onTap: () {
+                    Navigator.of(context).pushNamed(
                       AppRoutes.ngoProfile,
                     );
-
-                    if (!mounted) return;
-
-                    setState(() {
-                      _selectedBottomNav = 0;
-                    });
                   },
                 ),
               ),
@@ -1101,161 +1065,6 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
             ),
           ),
       ],
-    );
-  }
-
-  // ============================================================
-  // BOTTOM NAVIGATION
-  // ============================================================
-
-  Widget _buildBottomNavigation() {
-    return Container(
-      height: 67,
-
-      decoration: BoxDecoration(
-        color: Colors.white,
-
-        border: Border(
-          top: BorderSide(
-            color: Colors.grey.shade200,
-          ),
-        ),
-
-        boxShadow: [
-          BoxShadow(
-            color:
-                Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildNavItem(
-              index: 0,
-              icon: Icons.home_rounded,
-              label: 'Home',
-            ),
-          ),
-
-          Expanded(
-            child: _buildNavItem(
-              index: 1,
-              icon: Icons.checklist_rounded,
-              label: 'Tasks',
-            ),
-          ),
-
-          Expanded(
-            child: _buildNavItem(
-              index: 2,
-              icon: Icons.person_rounded,
-              label: 'Profile',
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // NAV ITEM
-  // ============================================================
-
-  Widget _buildNavItem({
-    required int index,
-    required IconData icon,
-    required String label,
-  }) {
-    final bool selected =
-        _selectedBottomNav == index;
-
-    return InkWell(
-      onTap: () async {
-        if (index == 0) {
-          setState(() {
-            _selectedBottomNav = 0;
-          });
-
-          return;
-        }
-
-        if (index == 1) {
-          setState(() {
-            _selectedBottomNav = 1;
-          });
-
-          await Navigator.of(context).pushNamed(
-            AppRoutes.ngoReports,
-          );
-
-          if (!mounted) return;
-
-          // Reports/Tasks se wapas aane par
-          // Home selected rahega.
-          setState(() {
-            _selectedBottomNav = 0;
-          });
-
-          return;
-        }
-
-        if (index == 2) {
-          setState(() {
-            _selectedBottomNav = 2;
-          });
-
-          await Navigator.of(context).pushNamed(
-            AppRoutes.ngoProfile,
-          );
-
-          if (!mounted) return;
-
-          // Profile se back aate hi Home blue hoga.
-          setState(() {
-            _selectedBottomNav = 0;
-          });
-
-          return;
-        }
-      },
-
-      child: Column(
-        mainAxisAlignment:
-            MainAxisAlignment.center,
-
-        children: [
-          Icon(
-            icon,
-            size: 27,
-
-            color: selected
-                ? darkBlue
-                : const Color(0xFF6B7785),
-          ),
-
-          const SizedBox(height: 3),
-
-          Text(
-            label,
-
-            style: TextStyle(
-              color: selected
-                  ? darkBlue
-                  : const Color(0xFF6B7785),
-
-              fontSize: 10,
-
-              fontWeight: selected
-                  ? FontWeight.w800
-                  : FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
