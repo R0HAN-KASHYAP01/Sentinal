@@ -140,9 +140,16 @@ class _NgoProfileScreenState extends State<NgoProfileScreen> {
         _longitude = position.longitude;
       });
 
-      // Reverse geocoding
+      // Reverse geocoding — Geocoding() is constructed lazily, right here,
+      // instead of as an eager field. The geocoding package has no
+      // registered platform implementation on web, so constructing it
+      // eagerly (as a field initializer) threw "Unexpected null value"
+      // the instant this screen's State was created — even just from
+      // sitting inactive in the shell's IndexedStack. Building it here
+      // keeps that failure contained to this already-existing try/catch,
+      // exactly like the comment below always intended.
       try {
-        final placemarks = await placemarkFromCoordinates(
+        final placemarks = await Geocoding().placemarkFromCoordinates(
           position.latitude,
           position.longitude,
         );
