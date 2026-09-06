@@ -5,9 +5,18 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
-import '../../../services/session_service.dart';
-import '../../../services/ngo_storage_service.dart';
+import '../../../app/theme.dart';
+import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/app_text_field.dart';
+import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/loading_state.dart';
+import '../../../core/widgets/primary_button.dart';
+import '../../../core/widgets/secondary_button.dart';
+import '../../../core/widgets/section_header.dart';
+import '../../../services/ai_attendance_service.dart';
 import '../../../services/ngo_attendance_service.dart';
+import '../../../services/ngo_storage_service.dart';
+import '../../../services/session_service.dart';
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({super.key});
@@ -26,6 +35,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   final _staffCountController =
       TextEditingController(text: '10');
 
+  final AiAttendanceService _aiAttendanceService = AiAttendanceService();
+
   Uint8List? _beneficiaryVideoBytes;
   String? _beneficiaryVideoName;
 
@@ -42,40 +53,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   List<AttendanceRecord> _history = [];
 
-  DateTime? _lastSubmittedAt;
-  String? _lastSubmittedType;
+  bool _loadingAiAttendance = true;
+  String? _aiAttendanceError;
 
-  // ------------------------------------------------------------
-  // COLORS
-  // ------------------------------------------------------------
-
-  static const Color navy = Color(0xFF123E68);
-  static const Color darkBlue = Color(0xFF0D4778);
-  static const Color blue = Color(0xFF1769AA);
-
-  static const Color background = Color(0xFFF4F8FB);
-  static const Color lightBlue = Color(0xFFEAF4FB);
-
-  static const Color green = Color(0xFF159447);
-  static const Color lightGreen = Color(0xFFE4F7EC);
-
-  static const Color greyText = Color(0xFF6B7785);
-  static const Color borderColor = Color(0xFFDDE6ED);
-
-  // ------------------------------------------------------------
-  // INIT
-  // ------------------------------------------------------------
+  Map<String, dynamic>? _aiSummary;
+  Map<String, dynamic>? _aiRoleStatistics;
+  Map<String, dynamic>? _aiLatestSession;
 
   @override
   void initState() {
     super.initState();
 
     _loadHistory();
+    _loadAiAttendance();
   }
-
-  // ------------------------------------------------------------
-  // DISPOSE
-  // ------------------------------------------------------------
 
   @override
   void dispose() {
@@ -85,9 +76,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     super.dispose();
   }
 
-  // ------------------------------------------------------------
-  // LOAD HISTORY
-  // ------------------------------------------------------------
+  // ============================================================
+  // MANUAL ATTENDANCE HISTORY
+  // ============================================================
 
   Future<void> _loadHistory() async {
     final user = SessionService.instance.currentUser;
@@ -102,9 +93,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       return;
     }
 
-    setState(() {
-      _loadingHistory = true;
-    });
+    if (mounted) {
+      setState(() {
+        _loadingHistory = true;
+      });
+    }
 
     try {
       final records =
@@ -125,27 +118,66 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
   }
 
-  // ------------------------------------------------------------
-  // PICK VIDEO
-  // ------------------------------------------------------------
+  // ============================================================
+  // AI ATTENDANCE
+  // ============================================================
 
-  Future<void> _pickVideo({
-    required bool isBeneficiary,
-  }) async {
+  Future<void> _loadAiAttendance() async {
+    if (!mounted) return;
+
+    setState(() {
+      _loadingAiAttendance = true;
+      _aiAttendanceError = null;
+    });
+
+    try {
+      final results = await Future.wait([
+        _aiAttendanceService.getAttendanceSummary(),
+        _aiAttendanceService.getRoleStatistics(),
+        _aiAttendanceService.getLatestAttendance(),
+      ]);
+
+      if (!mounted) return;
+
+      setState(() {
+        _aiSummary = results[0];
+        _aiRoleStatistics = results[1];
+        _aiLatestSession = results[2];
+        _loadingAiAttendance = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _loadingAiAttendance = false;
+        _aiAttendanceError =
+            'Unable to connect to the AI attendance server.';
+      });
+    }
+  }
+
+  Future<void> _refreshAll() async {
+    await Future.wait([
+      _loadHistory(),
+      _loadAiAttendance(),
+    ]);
+  }
+
+  // ============================================================
+  // VIDEO PICKER
+  // ============================================================
+
+  Future<void> _pickVideo({required bool isBeneficiary}) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.video,
       withData: true,
     );
 
-    if (result == null || result.files.isEmpty) {
-      return;
-    }
+    if (result == null || result.files.isEmpty) return;
 
     final file = result.files.first;
 
-    if (file.bytes == null) {
-      return;
-    }
+    if (file.bytes == null) return;
 
     setState(() {
       if (isBeneficiary) {
@@ -158,13 +190,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     });
   }
 
-  // ------------------------------------------------------------
-  // SUBMIT ATTENDANCE
-  // ------------------------------------------------------------
+  // ============================================================
+  // MANUAL ATTENDANCE SUBMISSION
+  // ============================================================
 
-  Future<void> _submit({
-    required bool isBeneficiary,
-  }) async {
+  Future<void> _submit({required bool isBeneficiary}) async {
     final user = SessionService.instance.currentUser;
 
     if (user == null) {
@@ -175,9 +205,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     final formKey =
         isBeneficiary ? _beneficiaryFormKey : _staffFormKey;
 
-    if (!formKey.currentState!.validate()) {
-      return;
-    }
+    if (!formKey.currentState!.validate()) return;
 
     setState(() {
       if (isBeneficiary) {
@@ -206,7 +234,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           ? _beneficiaryVideoName
           : _staffVideoName;
 
-      // Upload video if selected
       if (bytes != null && name != null) {
         videoPath =
             await NgoStorageService.instance.uploadFile(
@@ -216,7 +243,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         );
       }
 
-      // Submit to Supabase
       await NgoAttendanceService.instance.submitAttendance(
         user: user,
         type: isBeneficiary
@@ -228,13 +254,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       if (!mounted) return;
 
-      final now = DateTime.now();
-
       setState(() {
-        _lastSubmittedAt = now;
-        _lastSubmittedType =
-            isBeneficiary ? 'Beneficiary' : 'Staff';
-
         if (isBeneficiary) {
           _beneficiaryVideoBytes = null;
           _beneficiaryVideoName = null;
@@ -244,14 +264,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         }
       });
 
-      await _loadHistory();
-
-      if (!mounted) return;
-
       _showSuccess(
-        '${isBeneficiary ? 'Beneficiary' : 'Staff'} attendance submitted successfully!',
+        '${isBeneficiary ? 'Beneficiary' : 'Staff'} attendance submitted.',
       );
-    } catch (e) {
+
+      await _loadHistory();
+    } catch (_) {
       if (!mounted) return;
 
       setState(() {
@@ -264,18 +282,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         }
       });
     } finally {
-      if (!mounted) return;
-
-      setState(() {
-        _submittingBeneficiary = false;
-        _submittingStaff = false;
-      });
+      if (mounted) {
+        setState(() {
+          _submittingBeneficiary = false;
+          _submittingStaff = false;
+        });
+      }
     }
   }
 
-  // ------------------------------------------------------------
-  // VALIDATOR
-  // ------------------------------------------------------------
+  // ============================================================
+  // VALIDATION
+  // ============================================================
 
   String? _countValidator(String? value) {
     if (value == null || value.trim().isEmpty) {
@@ -291,58 +309,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     return null;
   }
 
-  // ------------------------------------------------------------
-  // DATE
-  // ------------------------------------------------------------
-
-  String _formatDate(DateTime date) {
-    const weekdays = [
-      'Mon',
-      'Tue',
-      'Wed',
-      'Thu',
-      'Fri',
-      'Sat',
-      'Sun',
-    ];
-
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-
-    return '${weekdays[date.weekday - 1]}, '
-        '${date.day.toString().padLeft(2, '0')} '
-        '${months[date.month - 1]} '
-        '${date.year}';
-  }
-
-  String _formatTime(DateTime date) {
-    final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
-
-    final minute =
-        date.minute.toString().padLeft(2, '0');
-
-    final period = date.hour >= 12 ? 'PM' : 'AM';
-
-    return '$hour:$minute $period';
-  }
-
-  // ------------------------------------------------------------
-  // SUCCESS MESSAGE
-  // ------------------------------------------------------------
+  // ============================================================
+  // FEEDBACK MESSAGES
+  // ============================================================
 
   void _showSuccess(String message) {
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -354,23 +327,19 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 color: Colors.white,
               ),
               const SizedBox(width: 10),
-              Expanded(
-                child: Text(message),
-              ),
+              Expanded(child: Text(message)),
             ],
           ),
           behavior: SnackBarBehavior.floating,
-          backgroundColor: green,
+          backgroundColor: AppColors.success,
           duration: const Duration(seconds: 2),
         ),
       );
   }
 
-  // ------------------------------------------------------------
-  // ERROR MESSAGE
-  // ------------------------------------------------------------
-
   void _showError(String message) {
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -381,181 +350,820 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       );
   }
 
-  // ------------------------------------------------------------
+  // ============================================================
+  // SAFE DATA CONVERSION
+  // ============================================================
+
+  int _toInt(dynamic value) {
+    if (value is int) {
+      return value;
+    }
+
+    if (value is double) {
+      return value.toInt();
+    }
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    if (value is String) {
+      return int.tryParse(value) ?? 0;
+    }
+
+    return 0;
+  }
+
+  double _toDouble(dynamic value) {
+    if (value is double) {
+      return value;
+    }
+
+    if (value is int) {
+      return value.toDouble();
+    }
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    if (value is String) {
+      return double.tryParse(value) ?? 0;
+    }
+
+    return 0;
+  }
+
+  // ============================================================
+  // EXTRACT ROLE DATA
+  //
+  // The role-statistics endpoint returns:
+  //
+  // {
+  //   "statistics": [
+  //     {
+  //       "role": "Staff",
+  //       "people": 7,
+  //       "observed_seconds": 460.57,
+  //       "percentage_of_people": 20.59
+  //     }
+  //   ]
+  // }
+  // ============================================================
+
+  Map<String, dynamic> _getRoleData(String role) {
+    final data = _aiRoleStatistics;
+
+    if (data == null) {
+      return {};
+    }
+
+    final statistics = data['statistics'];
+
+    if (statistics is! List) {
+      return {};
+    }
+
+    for (final item in statistics) {
+      if (item is Map) {
+        final itemRole = item['role']?.toString();
+
+        if (itemRole?.toLowerCase() == role.toLowerCase()) {
+          return Map<String, dynamic>.from(item);
+        }
+      }
+    }
+
+    return {};
+  }
+
+  // ============================================================
+  // ROLE COUNT
+  //
+  // The API uses the "people" field for each role.
+  // ============================================================
+
+  int _getRoleCount(String role) {
+    final data = _getRoleData(role);
+
+    return _toInt(data['people']);
+  }
+
+  // ============================================================
   // BUILD
-  // ------------------------------------------------------------
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
-    final today = DateTime.now();
-
     return Scaffold(
-      backgroundColor: background,
-
       appBar: AppBar(
-        backgroundColor: darkBlue,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_rounded,
-            size: 27,
-          ),
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
-        ),
-
-        title: const Text(
-          'Daily Attendance',
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
+        title: const Text('Daily Attendance'),
       ),
-
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            14,
-            10,
-            14,
-            24,
+        child: RefreshIndicator(
+          onRefresh: _refreshAll,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(20),
+            children: [
+              const Text(
+                "Submit today's headcount for beneficiaries and staff separately.",
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // ==================================================
+              // AI ATTENDANCE
+              // ==================================================
+
+              _buildAiAttendanceSection(),
+
+              const SizedBox(height: 24),
+
+              // ==================================================
+              // MANUAL ATTENDANCE
+              // ==================================================
+
+              const SectionHeader(
+                title: 'Manual Attendance',
+              ),
+
+              const SizedBox(height: 12),
+
+              _buildAttendanceCard(
+                title: 'Beneficiary Attendance',
+                icon: Icons.diversity_3_outlined,
+                formKey: _beneficiaryFormKey,
+                countController: _beneficiaryCountController,
+                videoName: _beneficiaryVideoName,
+                onPickVideo: () =>
+                    _pickVideo(isBeneficiary: true),
+                onSubmit: () =>
+                    _submit(isBeneficiary: true),
+                isSubmitting: _submittingBeneficiary,
+                error: _beneficiaryError,
+              ),
+
+              const SizedBox(height: 16),
+
+              _buildAttendanceCard(
+                title: 'Staff Attendance',
+                icon: Icons.badge_outlined,
+                formKey: _staffFormKey,
+                countController: _staffCountController,
+                videoName: _staffVideoName,
+                onPickVideo: () =>
+                    _pickVideo(isBeneficiary: false),
+                onSubmit: () =>
+                    _submit(isBeneficiary: false),
+                isSubmitting: _submittingStaff,
+                error: _staffError,
+              ),
+
+              const SizedBox(height: 24),
+
+              // ==================================================
+              // HISTORY
+              // ==================================================
+
+              const SectionHeader(
+                title: 'Recent Submissions',
+              ),
+
+              const SizedBox(height: 12),
+
+              if (_loadingHistory)
+                const LoadingState(
+                  message: 'Loading attendance history...',
+                )
+              else if (_history.isEmpty)
+                const EmptyState(
+                  icon: Icons.event_busy_outlined,
+                  title: 'No attendance submitted yet',
+                  message: 'Submitted records will appear here.',
+                )
+              else
+                ..._history.map(
+                  (record) => _buildHistoryRow(record),
+                ),
+            ],
           ),
-          children: [
-            // ==================================================
-            // DATE HEADER
-            // ==================================================
-
-            _buildDateHeader(today),
-
-            const SizedBox(height: 10),
-
-            // ==================================================
-            // BENEFICIARY
-            // ==================================================
-
-            _buildAttendanceCard(
-              title: 'Beneficiary Attendance',
-              subtitle:
-                  'Enter the number of beneficiaries present today',
-              icon: Icons.groups_rounded,
-              formKey: _beneficiaryFormKey,
-              countController: _beneficiaryCountController,
-              videoName: _beneficiaryVideoName,
-              onPickVideo: () {
-                _pickVideo(isBeneficiary: true);
-              },
-              onSubmit: () {
-                _submit(isBeneficiary: true);
-              },
-              isSubmitting: _submittingBeneficiary,
-              error: _beneficiaryError,
-            ),
-
-            const SizedBox(height: 12),
-
-            // ==================================================
-            // STAFF
-            // ==================================================
-
-            _buildAttendanceCard(
-              title: 'Staff Attendance',
-              subtitle:
-                  'Enter the number of staff members present today',
-              icon: Icons.business_rounded,
-              formKey: _staffFormKey,
-              countController: _staffCountController,
-              videoName: _staffVideoName,
-              onPickVideo: () {
-                _pickVideo(isBeneficiary: false);
-              },
-              onSubmit: () {
-                _submit(isBeneficiary: false);
-              },
-              isSubmitting: _submittingStaff,
-              error: _staffError,
-            ),
-
-            const SizedBox(height: 14),
-
-            // ==================================================
-            // SUCCESS BOX
-            // ==================================================
-
-            if (_lastSubmittedAt != null)
-              _buildSuccessBox(),
-
-            const SizedBox(height: 18),
-
-            // ==================================================
-            // RECENT SUBMISSIONS
-            // ==================================================
-
-            _buildRecentSubmissions(),
-          ],
         ),
       ),
     );
   }
 
   // ============================================================
-  // DATE HEADER
+  // AI ATTENDANCE SECTION
   // ============================================================
 
-  Widget _buildDateHeader(DateTime today) {
-    return Container(
-      height: 45,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 14,
+  Widget _buildAiAttendanceSection() {
+    if (_loadingAiAttendance) {
+      return AppCard(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildAiSectionHeader(),
+
+            const SizedBox(height: 18),
+
+            const LoadingState(
+              message: 'Loading AI attendance...',
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_aiAttendanceError != null) {
+      return AppCard(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildAiSectionHeader(),
+
+            const SizedBox(height: 16),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AppColors.border,
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.cloud_off_outlined,
+                    color: AppColors.warning,
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  Expanded(
+                    child: Text(
+                      _aiAttendanceError!,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            SecondaryButton(
+              label: 'Retry AI Connection',
+              icon: Icons.refresh,
+              onPressed: _loadAiAttendance,
+            ),
+          ],
+        ),
+      );
+    }
+
+    final summary = _aiSummary ?? {};
+    final latest = _aiLatestSession ?? {};
+
+    // ==========================================================
+    // SUMMARY DATA
+    // ==========================================================
+
+    final totalTracked =
+        _toInt(summary['total_tracked']);
+
+    final sessionCount =
+        _toInt(summary['total_sessions']);
+
+    final observedSeconds =
+        _toDouble(summary['total_observed_seconds']);
+
+    // ==========================================================
+    // ROLE DATA
+    // ==========================================================
+
+    final staff =
+        _getRoleCount('Staff');
+
+    final beneficiary =
+        _getRoleCount('Beneficiary');
+
+    final unknown =
+        _getRoleCount('Unknown');
+
+    final roleTotal =
+        staff + beneficiary + unknown;
+
+    final distributionTotal =
+        roleTotal > 0 ? roleTotal : totalTracked;
+
+    return AppCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildAiSectionHeader(),
+
+          const SizedBox(height: 6),
+
+          const Text(
+            'Live data received from the Sentinal AI attendance backend.',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          // ======================================================
+          // TOP STATISTICS
+          // ======================================================
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildAiStatCard(
+                  title: 'Tracked',
+                  value: '$totalTracked',
+                  icon: Icons.people_outline,
+                ),
+              ),
+
+              const SizedBox(width: 10),
+
+              Expanded(
+                child: _buildAiStatCard(
+                  title: 'Staff',
+                  value: '$staff',
+                  icon: Icons.badge_outlined,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildAiStatCard(
+                  title: 'Beneficiary',
+                  value: '$beneficiary',
+                  icon: Icons.diversity_3_outlined,
+                ),
+              ),
+
+              const SizedBox(width: 10),
+
+              Expanded(
+                child: _buildAiStatCard(
+                  title: 'Unknown',
+                  value: '$unknown',
+                  icon: Icons.help_outline,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
+          // ======================================================
+          // SESSION INFORMATION
+          // ======================================================
+
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: AppColors.border,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'AI Session Information',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                _buildInfoRow(
+                  'Sessions available',
+                  '$sessionCount',
+                ),
+
+                const SizedBox(height: 8),
+
+                _buildInfoRow(
+                  'Observed time',
+                  '${observedSeconds.toStringAsFixed(1)} sec',
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          // ======================================================
+          // LATEST AI SESSION
+          // ======================================================
+
+          _buildLatestSessionCard(latest),
+
+          const SizedBox(height: 18),
+
+          // ======================================================
+          // ROLE DISTRIBUTION
+          // ======================================================
+
+          const Text(
+            'Role Distribution',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          _buildRoleDistribution(
+            label: 'Staff',
+            value: staff,
+            total: distributionTotal,
+            icon: Icons.badge_outlined,
+          ),
+
+          const SizedBox(height: 10),
+
+          _buildRoleDistribution(
+            label: 'Beneficiary',
+            value: beneficiary,
+            total: distributionTotal,
+            icon: Icons.diversity_3_outlined,
+          ),
+
+          const SizedBox(height: 10),
+
+          _buildRoleDistribution(
+            label: 'Unknown',
+            value: unknown,
+            total: distributionTotal,
+            icon: Icons.help_outline,
+          ),
+
+          const SizedBox(height: 14),
+
+          const Text(
+            'Role statistics received from the AI API.',
+            style: TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ======================================================
+          // REFRESH
+          // ======================================================
+
+          SecondaryButton(
+            label: 'Refresh AI Attendance',
+            icon: Icons.refresh,
+            onPressed: _loadAiAttendance,
+          ),
+        ],
       ),
+    );
+  }
+
+  // ============================================================
+  // LATEST AI SESSION CARD
+  // ============================================================
+
+  Widget _buildLatestSessionCard(
+    Map<String, dynamic> latest,
+  ) {
+    if (latest.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: AppColors.border,
+          ),
+        ),
+        child: const Text(
+          'No AI attendance session available.',
+          style: TextStyle(
+            fontSize: 12,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      );
+    }
+
+    final sessionId =
+        latest['session_id']?.toString() ?? 'Unknown';
+
+    final tracked =
+        _toInt(latest['total_tracked']);
+
+    final staff =
+        _toInt(latest['staff']);
+
+    final beneficiary =
+        _toInt(latest['beneficiary']);
+
+    final unknown =
+        _toInt(latest['unknown']);
+
+    final startedAt =
+        latest['session_started_at']?.toString() ?? 'Unknown';
+
+    final endedAt =
+        latest['session_ended_at']?.toString() ?? 'Unknown';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.background,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: borderColor,
+          color: AppColors.border,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(
+                    alpha: 0.10,
+                  ),
+                  borderRadius:
+                      BorderRadius.circular(9),
+                ),
+                child: const Icon(
+                  Icons.video_camera_back_outlined,
+                  color: AppColors.primary,
+                  size: 19,
+                ),
+              ),
+
+              const SizedBox(width: 10),
+
+              const Expanded(
+                child: Text(
+                  'Latest AI Session',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 7,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.secondary.withValues(
+                    alpha: 0.10,
+                  ),
+                  borderRadius:
+                      BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'LATEST',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.secondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          _buildInfoRow(
+            'Session ID',
+            sessionId,
+          ),
+
+          const SizedBox(height: 8),
+
+          _buildInfoRow(
+            'Tracked',
+            '$tracked',
+          ),
+
+          const SizedBox(height: 8),
+
+          _buildInfoRow(
+            'Staff',
+            '$staff',
+          ),
+
+          const SizedBox(height: 8),
+
+          _buildInfoRow(
+            'Beneficiary',
+            '$beneficiary',
+          ),
+
+          const SizedBox(height: 8),
+
+          _buildInfoRow(
+            'Unknown',
+            '$unknown',
+          ),
+
+          const SizedBox(height: 12),
+
+          const Divider(
+            height: 1,
+          ),
+
+          const SizedBox(height: 12),
+
+          _buildInfoRow(
+            'Started',
+            startedAt,
+          ),
+
+          const SizedBox(height: 8),
+
+          _buildInfoRow(
+            'Ended',
+            endedAt,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // AI HEADER
+  // ============================================================
+
+  Widget _buildAiSectionHeader() {
+    return Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(
+            Icons.smart_toy_outlined,
+            color: AppColors.primary,
+            size: 22,
+          ),
+        ),
+
+        const SizedBox(width: 12),
+
+        const Expanded(
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              Text(
+                'AI Attendance Monitoring',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+
+              SizedBox(height: 2),
+
+              Text(
+                'YOLO + ByteTrack + Attendance Engine',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 5,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.warning.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Text(
+            'AI',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: AppColors.warning,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // AI STAT CARD
+  // ============================================================
+
+  Widget _buildAiStatCard({
+    required String title,
+    required String value,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: AppColors.border,
         ),
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.calendar_month_rounded,
-            size: 21,
-            color: navy,
+          Icon(
+            icon,
+            size: 20,
+            color: AppColors.primary,
           ),
 
-          const SizedBox(width: 10),
+          const SizedBox(width: 9),
 
-          Text(
-            _formatDate(today),
-            style: const TextStyle(
-              color: navy,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
 
-          const Spacer(),
+                const SizedBox(height: 2),
 
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 7,
-            ),
-            decoration: BoxDecoration(
-              color: lightBlue,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: const Text(
-              'Today',
-              style: TextStyle(
-                color: blue,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-              ),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -564,12 +1172,113 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   // ============================================================
-  // ATTENDANCE CARD
+  // INFORMATION ROW
+  // ============================================================
+
+  Widget _buildInfoRow(
+    String label,
+    String value,
+  ) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // ROLE DISTRIBUTION
+  // ============================================================
+
+  Widget _buildRoleDistribution({
+    required String label,
+    required int value,
+    required int total,
+    required IconData icon,
+  }) {
+    final ratio = total > 0
+        ? (value / total).clamp(0.0, 1.0)
+        : 0.0;
+
+    return Column(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              icon,
+              size: 17,
+              color: AppColors.secondary,
+            ),
+
+            const SizedBox(width: 8),
+
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+
+            Text(
+              '$value',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 6),
+
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: LinearProgressIndicator(
+            value: ratio,
+            minHeight: 6,
+            backgroundColor: AppColors.background,
+            valueColor:
+                const AlwaysStoppedAnimation<Color>(
+              AppColors.primary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // MANUAL ATTENDANCE CARD
   // ============================================================
 
   Widget _buildAttendanceCard({
     required String title,
-    required String subtitle,
     required IconData icon,
     required GlobalKey<FormState> formKey,
     required TextEditingController countController,
@@ -579,80 +1288,32 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     required bool isSubmitting,
     required String? error,
   }) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(
-        14,
-        14,
-        14,
-        12,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(11),
-        border: Border.all(
-          color: borderColor,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.035),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(16),
       child: Form(
         key: formKey,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              CrossAxisAlignment.stretch,
           children: [
-            // --------------------------------------------------
-            // TITLE
-            // --------------------------------------------------
-
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: lightBlue,
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                  child: Icon(
-                    icon,
-                    color: darkBlue,
-                    size: 23,
-                  ),
+                Icon(
+                  icon,
+                  color: AppColors.primary,
+                  size: 22,
                 ),
 
-                const SizedBox(width: 9),
+                const SizedBox(width: 10),
 
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          color: navy,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-
-                      const SizedBox(height: 2),
-
-                      Text(
-                        subtitle,
-                        style: const TextStyle(
-                          color: greyText,
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
@@ -660,391 +1321,45 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
             const SizedBox(height: 14),
 
-            // --------------------------------------------------
-            // LABEL
-            // --------------------------------------------------
-
-            const Text(
-              'Number present today',
-              style: TextStyle(
-                color: greyText,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-
-            const SizedBox(height: 5),
-
-            // --------------------------------------------------
-            // COUNT FIELD
-            // --------------------------------------------------
-
-            TextFormField(
+            AppTextField(
+              label: 'Number present today',
               controller: countController,
               keyboardType: TextInputType.number,
               validator: _countValidator,
-              style: const TextStyle(
-                color: navy,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-              decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 12,
-                ),
-                filled: true,
-                fillColor: Colors.white,
-
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(7),
-                  borderSide: const BorderSide(
-                    color: borderColor,
-                  ),
-                ),
-
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(7),
-                  borderSide: const BorderSide(
-                    color: borderColor,
-                  ),
-                ),
-
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(7),
-                  borderSide: const BorderSide(
-                    color: blue,
-                    width: 1.4,
-                  ),
-                ),
-
-                errorBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(7),
-                  borderSide: const BorderSide(
-                    color: Colors.redAccent,
-                  ),
-                ),
-
-                focusedErrorBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(7),
-                  borderSide: const BorderSide(
-                    color: Colors.redAccent,
-                  ),
-                ),
-
-                errorStyle: const TextStyle(
-                  fontSize: 9,
-                ),
-              ),
             ),
 
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
 
-            // --------------------------------------------------
-            // VIDEO BUTTON
-            // --------------------------------------------------
-
-            SizedBox(
-              width: double.infinity,
-              height: 35,
-              child: Material(
-                color: lightBlue,
-                borderRadius: BorderRadius.circular(6),
-                child: InkWell(
-                  onTap: onPickVideo,
-                  borderRadius: BorderRadius.circular(6),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.videocam_rounded,
-                        size: 20,
-                        color: darkBlue,
-                      ),
-
-                      const SizedBox(width: 7),
-
-                      Flexible(
-                        child: Text(
-                          videoName ??
-                              'Attach video evidence (optional)',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: darkBlue,
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            SecondaryButton(
+              label: videoName ??
+                  'Attach video evidence (optional)',
+              icon: Icons.videocam_outlined,
+              onPressed: onPickVideo,
             ),
-
-            // --------------------------------------------------
-            // ERROR
-            // --------------------------------------------------
 
             if (error != null) ...[
-              const SizedBox(height: 7),
+              const SizedBox(height: 10),
 
               Text(
                 error,
                 style: const TextStyle(
-                  color: Colors.red,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
+                  color: AppColors.error,
+                  fontSize: 12,
                 ),
               ),
             ],
 
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
 
-            // --------------------------------------------------
-            // SUBMIT BUTTON
-            // --------------------------------------------------
-
-            SizedBox(
-              width: double.infinity,
-              height: 38,
-              child: ElevatedButton(
-                onPressed: isSubmitting ? null : onSubmit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: darkBlue,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor:
-                      const Color(0xFF7FA4C1),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                ),
-                child: isSubmitting
-                    ? const SizedBox(
-                        height: 19,
-                        width: 19,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(
-                            Colors.white,
-                          ),
-                        ),
-                      )
-                    : const Text(
-                        'Submit Attendance',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-              ),
+            PrimaryButton(
+              label: isSubmitting
+                  ? 'Submitting...'
+                  : 'Submit',
+              onPressed:
+                  isSubmitting ? () {} : onSubmit,
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // SUCCESS BOX
-  // ============================================================
-
-  Widget _buildSuccessBox() {
-    final submittedAt = _lastSubmittedAt!;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 11,
-      ),
-      decoration: BoxDecoration(
-        color: lightGreen,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: const Color(0xFFC9EED8),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 29,
-            height: 29,
-            decoration: const BoxDecoration(
-              color: green,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.check_rounded,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
-
-          const SizedBox(width: 9),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${_lastSubmittedType ?? 'Attendance'} '
-                  'attendance submitted successfully!',
-                  style: const TextStyle(
-                    color: green,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-
-                const SizedBox(height: 2),
-
-                Text(
-                  '${_formatDate(submittedAt)} • '
-                  '${_formatTime(submittedAt)}',
-                  style: const TextStyle(
-                    color: greyText,
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // RECENT SUBMISSIONS
-  // ============================================================
-
-  Widget _buildRecentSubmissions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // ------------------------------------------------------
-        // HEADER
-        // ------------------------------------------------------
-
-        Row(
-          children: [
-            const Text(
-              'Recent Submissions',
-              style: TextStyle(
-                color: navy,
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-
-            const Spacer(),
-
-            GestureDetector(
-              onTap: () {
-                // History is already displayed below.
-              },
-              child: const Text(
-                'View all',
-                style: TextStyle(
-                  color: blue,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 10),
-
-        // ------------------------------------------------------
-        // LOADING
-        // ------------------------------------------------------
-
-        if (_loadingHistory)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 20),
-            child: Center(
-              child: SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.3,
-                ),
-              ),
-            ),
-          )
-
-        // ------------------------------------------------------
-        // EMPTY
-        // ------------------------------------------------------
-
-        else if (_history.isEmpty)
-          _buildEmptyHistory()
-
-        // ------------------------------------------------------
-        // HISTORY
-        // ------------------------------------------------------
-
-        else
-          ..._history.map(
-            (record) => _buildHistoryRow(record),
-          ),
-      ],
-    );
-  }
-
-  // ============================================================
-  // EMPTY HISTORY
-  // ============================================================
-
-  Widget _buildEmptyHistory() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        vertical: 25,
-        horizontal: 15,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: borderColor,
-        ),
-      ),
-      child: Column(
-        children: [
-          const Icon(
-            Icons.event_busy_rounded,
-            size: 34,
-            color: greyText,
-          ),
-
-          const SizedBox(height: 8),
-
-          const Text(
-            'No attendance submitted yet',
-            style: TextStyle(
-              color: navy,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-
-          const SizedBox(height: 3),
-
-          const Text(
-            'Submitted records will appear here.',
-            style: TextStyle(
-              color: greyText,
-              fontSize: 10,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1056,110 +1371,66 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Widget _buildHistoryRow(
     AttendanceRecord record,
   ) {
+    final dateStr =
+        '${record.date.day.toString().padLeft(2, '0')}/'
+        '${record.date.month.toString().padLeft(2, '0')}/'
+        '${record.date.year}';
+
     final isBeneficiary =
         record.type == AttendanceType.beneficiary;
 
-    final icon = isBeneficiary
-        ? Icons.groups_rounded
-        : Icons.business_rounded;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: AppCard(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Icon(
+              isBeneficiary
+                  ? Icons.diversity_3_outlined
+                  : Icons.badge_outlined,
+              color: AppColors.secondary,
+              size: 20,
+            ),
 
-    final title = isBeneficiary
-        ? 'Beneficiary Attendance'
-        : 'Staff Attendance';
+            const SizedBox(width: 12),
 
-    final date = _formatDate(record.date);
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isBeneficiary
+                        ? 'Beneficiary Attendance'
+                        : 'Staff Attendance',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(
-        horizontal: 11,
-        vertical: 10,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(
-          color: borderColor,
+                  Text(
+                    dateStr,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            Text(
+              '${record.presentCount}',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
+          ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.025),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // ----------------------------------------------------
-          // ICON
-          // ----------------------------------------------------
-
-          Container(
-            width: 35,
-            height: 35,
-            decoration: BoxDecoration(
-              color: isBeneficiary
-                  ? const Color(0xFFE6F7EE)
-                  : lightBlue,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              icon,
-              size: 22,
-              color: isBeneficiary
-                  ? green
-                  : darkBlue,
-            ),
-          ),
-
-          const SizedBox(width: 10),
-
-          // ----------------------------------------------------
-          // TEXT
-          // ----------------------------------------------------
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: navy,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-
-                const SizedBox(height: 3),
-
-                Text(
-                  date,
-                  style: const TextStyle(
-                    color: greyText,
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ----------------------------------------------------
-          // COUNT
-          // ----------------------------------------------------
-
-          Text(
-            '${record.presentCount}',
-            style: const TextStyle(
-              color: navy,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
       ),
     );
   }

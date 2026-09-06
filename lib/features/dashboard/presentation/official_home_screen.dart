@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../services/session_service.dart';
 import '../../../app/routes.dart';
 import '../../../app/theme.dart';
@@ -14,7 +15,9 @@ class OfficialHomeScreen extends StatelessWidget {
 
   void _logout(BuildContext context) {
     SessionService.instance.clear();
-    Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
+
+    Navigator.of(context)
+        .pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
   }
 
   @override
@@ -80,7 +83,9 @@ class OfficialHomeScreen extends StatelessWidget {
             SectionHeader(
               title: 'Recent Inspections',
               actionLabel: 'View all',
-              onActionTap: () => Navigator.of(context).pushNamed(AppRoutes.inspectionsPlaceholder),
+              onActionTap: () =>
+                  Navigator.of(context)
+                      .pushNamed(AppRoutes.inspectionsPlaceholder),
             ),
             const SizedBox(height: 10),
 
@@ -279,6 +284,7 @@ class _HeroBanner extends StatelessWidget {
 
 class _AlertBanner extends StatelessWidget {
   final int count;
+
   const _AlertBanner({required this.count});
 
   @override
@@ -292,7 +298,11 @@ class _AlertBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded, color: Color(0xFFB3261E), size: 22),
+          const Icon(
+            Icons.warning_amber_rounded,
+            color: Color(0xFFB3261E),
+            size: 22,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
