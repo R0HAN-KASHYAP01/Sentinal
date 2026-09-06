@@ -1,8 +1,8 @@
+// FILE: lib/features/ngo/presentation/ngo_dashboard_screen.dart
+
 import 'package:flutter/material.dart';
 
-import '../../../models/user.dart';
 import '../../../services/session_service.dart';
-import '../../../services/auth_service.dart';
 import '../../../services/ngo_reports_service.dart';
 import '../../../services/ngo_camera_service.dart';
 import '../../../app/routes.dart';
@@ -19,10 +19,6 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
   int? _feedsCount;
   bool _loadingStats = true;
 
-  // Notification count
-  // 0 = no new notifications, so badge will not be shown.
-  int _notificationCount = 0;
-
   // ============================================================
   // COLORS
   // ============================================================
@@ -30,8 +26,13 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
   static const Color navy = Color(0xFF123E68);
   static const Color darkBlue = Color(0xFF0D4778);
 
+  // Main blue-grey background
   static const Color background = Color(0xFFEAF1F6);
+
+  // Blue-grey cards
   static const Color cardBackground = Color(0xFFE4EDF3);
+
+  // Slightly lighter blue-grey for icon containers
   static const Color softBlueGrey = Color(0xFFDCE8F0);
 
   static const Color green = Color(0xFF159447);
@@ -88,47 +89,15 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
   }
 
   // ============================================================
-  // LOGOUT
-  // ============================================================
-
-  Future<void> _handleLogout() async {
-    await AuthService.instance.logout();
-    SessionService.instance.clear();
-
-    if (!mounted) return;
-
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      AppRoutes.login,
-      (route) => false,
-    );
-  }
-
-  // ============================================================
   // NOTIFICATION
   // ============================================================
 
   void _showNotifications() {
-    if (_notificationCount == 0) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('No new notifications'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      return;
-    }
-
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text(
-            _notificationCount == 1
-                ? 'You have 1 new notification'
-                : 'You have $_notificationCount new notifications',
-          ),
+        const SnackBar(
+          content: Text('You have 2 new notifications'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -151,78 +120,60 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
   }
 
   // ============================================================
-  // DYNAMIC DISPLAY NAME
-  // ============================================================
-
-  String _getDisplayName(AppUser? user) {
-    final email = user?.email.trim() ?? '';
-
-    if (email.isNotEmpty && email.contains('@')) {
-      final localPart = email.split('@').first.trim();
-
-      if (localPart.isNotEmpty) {
-        final words = localPart
-            .split(RegExp(r'[._-]+'))
-            .where((word) => word.isNotEmpty)
-            .map(
-              (word) =>
-                  '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}',
-            )
-            .toList();
-
-        if (words.isNotEmpty) {
-          return words.join(' ');
-        }
-      }
-    }
-
-    final name = user?.name.trim() ?? '';
-
-    if (name.isNotEmpty && name.toLowerCase() != 'uday') {
-      return name;
-    }
-
-    return 'User';
-  }
-
-  // ============================================================
   // BUILD
+  // ============================================================
+  //
+  // NOTE: This screen is rendered as a TAB PAGE inside
+  // NgoShellScreen's IndexedStack. It must NOT return its own
+  // Scaffold or bottom navigation bar — NgoShellScreen already
+  // owns the Scaffold + NavigationBar for Home/Tasks/Profile.
+  // Returning a second Scaffold/bottom-nav here was causing two
+  // bottom nav bars to render stacked on top of each other.
   // ============================================================
 
   @override
   Widget build(BuildContext context) {
     final user = SessionService.instance.currentUser;
-    final userName = _getDisplayName(user);
 
-    return Scaffold(
-      backgroundColor: background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: _loadStats,
-                color: darkBlue,
-                backgroundColor: Colors.white,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: EdgeInsets.zero,
-                  children: [
-                    _buildTopHeader(userName),
-                    const SizedBox(height: 12),
-                    _buildGovernmentBanner(),
-                    const SizedBox(height: 18),
-                    _buildTodayStatus(),
-                    const SizedBox(height: 20),
-                    _buildQuickStatus(),
-                    const SizedBox(height: 20),
-                    _buildTodayOverview(),
-                    const SizedBox(height: 24),
-                  ],
-                ),
-              ),
-            ),
-          ],
+    final userName =
+        user?.name.isNotEmpty == true ? user!.name : 'Uday';
+
+    return Container(
+      color: background,
+      child: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          onRefresh: _loadStats,
+          color: darkBlue,
+          backgroundColor: Colors.white,
+
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+
+            padding: EdgeInsets.zero,
+
+            children: [
+              _buildTopHeader(userName),
+
+              const SizedBox(height: 12),
+
+              _buildGovernmentBanner(),
+
+              const SizedBox(height: 18),
+
+              _buildTodayStatus(),
+
+              const SizedBox(height: 20),
+
+              _buildQuickStatus(),
+
+              const SizedBox(height: 20),
+
+              _buildTodayOverview(),
+
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
     );
@@ -235,29 +186,38 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
   Widget _buildTopHeader(String userName) {
     return Container(
       width: double.infinity,
+
       padding: const EdgeInsets.fromLTRB(
         20,
         17,
         18,
         18,
       ),
+
       decoration: const BoxDecoration(
         color: darkBlue,
+
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(22),
           bottomRight: Radius.circular(22),
         ),
       ),
+
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment:
+            CrossAxisAlignment.center,
+
         children: [
+          // PROFILE CIRCLE
           Container(
             width: 55,
             height: 55,
+
             decoration: const BoxDecoration(
               color: Colors.white,
               shape: BoxShape.circle,
             ),
+
             child: const Icon(
               Icons.person_rounded,
               size: 34,
@@ -267,12 +227,16 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
 
           const SizedBox(width: 13),
 
+          // USER INFORMATION
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+
               children: [
                 Text(
                   _getGreeting(),
+
                   style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 12,
@@ -284,8 +248,10 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
 
                 Text(
                   userName,
+
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 17,
@@ -297,6 +263,7 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
 
                 const Text(
                   'NGO / Institute',
+
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 11,
@@ -307,11 +274,14 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
             ),
           ),
 
+          // NOTIFICATION
           Stack(
             clipBehavior: Clip.none,
+
             children: [
               IconButton(
                 onPressed: _showNotifications,
+
                 icon: const Icon(
                   Icons.notifications_none_rounded,
                   color: Colors.white,
@@ -319,40 +289,37 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
                 ),
               ),
 
-              // Show badge ONLY when there are new notifications.
-              if (_notificationCount > 0)
-                Positioned(
-                  right: 5,
-                  top: 2,
-                  child: Container(
-                    constraints: const BoxConstraints(
-                      minWidth: 19,
-                      minHeight: 19,
+              Positioned(
+                right: 5,
+                top: 2,
+
+                child: Container(
+                  width: 19,
+                  height: 19,
+
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+
+                    border: Border.all(
+                      color: darkBlue,
+                      width: 2,
                     ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: darkBlue,
-                        width: 2,
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        '$_notificationCount',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
+                  ),
+
+                  child: const Center(
+                    child: Text(
+                      '2',
+
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
                 ),
+              ),
             ],
           ),
         ],
@@ -366,45 +333,64 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
 
   Widget _buildGovernmentBanner() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 18),
+
       child: Container(
         height: 82,
+
         padding: const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 10,
         ),
+
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
+
+          borderRadius:
+              BorderRadius.circular(10),
+
           border: Border.all(
             color: const Color(0xFFE0E8EE),
           ),
+
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.035),
+              color:
+                  Colors.black.withValues(alpha: 0.035),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
           ],
         ),
+
         child: Row(
           children: [
+            // LEFT TEXT
             Expanded(
               flex: 6,
+
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
+
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+
                 children: const [
                   Text(
                     "Let's build a stronger,",
+
                     style: TextStyle(
                       color: navy,
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
+
                   Text(
                     "more inclusive society",
+
                     style: TextStyle(
                       color: navy,
                       fontSize: 12,
@@ -415,20 +401,28 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
               ),
             ),
 
+            // TRICOLOR LINES
             Expanded(
               flex: 4,
+
               child: Stack(
                 alignment: Alignment.center,
+
                 children: [
                   Positioned(
                     bottom: 11,
                     left: 0,
                     right: 0,
+
                     child: Container(
                       height: 4,
+
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        color: const Color(0xFFFFC66D),
+                        borderRadius:
+                            BorderRadius.circular(10),
+
+                        color:
+                            const Color(0xFFFFC66D),
                       ),
                     ),
                   ),
@@ -437,11 +431,16 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
                     bottom: 6,
                     left: 18,
                     right: 4,
+
                     child: Container(
                       height: 4,
+
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        color: const Color(0xFF54B96B),
+                        borderRadius:
+                            BorderRadius.circular(10),
+
+                        color:
+                            const Color(0xFF54B96B),
                       ),
                     ),
                   ),
@@ -449,32 +448,47 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
               ),
             ),
 
+            // RIGHT TEXT
             Expanded(
               flex: 4,
+
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
+
                 children: const [
                   Text(
                     'Government',
-                    textAlign: TextAlign.center,
+
+                    textAlign:
+                        TextAlign.center,
+
                     style: TextStyle(
                       fontSize: 9,
                       color: Colors.grey,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+
                   Text(
                     'for a Brighter',
-                    textAlign: TextAlign.center,
+
+                    textAlign:
+                        TextAlign.center,
+
                     style: TextStyle(
                       fontSize: 9,
                       color: Colors.grey,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+
                   Text(
                     'Tomorrow',
-                    textAlign: TextAlign.center,
+
+                    textAlign:
+                        TextAlign.center,
+
                     style: TextStyle(
                       fontSize: 9,
                       color: Colors.grey,
@@ -496,9 +510,13 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
 
   Widget _buildTodayStatus() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 18),
+
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+
         children: [
           _buildSectionTitle(
             'Today’s Status',
@@ -514,9 +532,12 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
                 size: 14,
                 color: Colors.grey,
               ),
+
               SizedBox(width: 4),
+
               Text(
                 'Thu, 03 Sep 2026',
+
                 style: TextStyle(
                   color: Colors.grey,
                   fontSize: 11,
@@ -589,34 +610,48 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
   }) {
     return Container(
       height: 108,
+
       padding: const EdgeInsets.symmetric(
         horizontal: 7,
         vertical: 10,
       ),
+
       decoration: BoxDecoration(
         color: cardBackground,
-        borderRadius: BorderRadius.circular(9),
+
+        borderRadius:
+            BorderRadius.circular(9),
+
         border: Border.all(
           color: borderColor,
         ),
+
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.025),
+            color:
+                Colors.black.withValues(alpha: 0.025),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
         ],
       ),
+
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment:
+            MainAxisAlignment.center,
+
         children: [
           Container(
             width: 39,
             height: 39,
+
             decoration: BoxDecoration(
               color: softBlueGrey,
-              borderRadius: BorderRadius.circular(11),
+
+              borderRadius:
+                  BorderRadius.circular(11),
             ),
+
             child: Icon(
               icon,
               size: 26,
@@ -628,9 +663,13 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
 
           Text(
             title,
+
             textAlign: TextAlign.center,
+
             maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            overflow:
+                TextOverflow.ellipsis,
+
             style: const TextStyle(
               color: navy,
               fontSize: 10,
@@ -641,7 +680,9 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
           const SizedBox(height: 5),
 
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment:
+                MainAxisAlignment.center,
+
             children: [
               if (showCheck) ...[
                 Icon(
@@ -649,15 +690,22 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
                   color: bottomColor,
                   size: 13,
                 ),
+
                 const SizedBox(width: 3),
               ],
 
               Flexible(
                 child: Text(
                   bottomText,
-                  textAlign: TextAlign.center,
+
+                  textAlign:
+                      TextAlign.center,
+
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+
+                  overflow:
+                      TextOverflow.ellipsis,
+
                   style: TextStyle(
                     color: bottomColor,
                     fontSize: 9,
@@ -678,9 +726,13 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
 
   Widget _buildQuickStatus() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 18),
+
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+
         children: [
           _buildSectionTitle('Quick Status'),
 
@@ -692,6 +744,7 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
                 child: _buildQuickCard(
                   icon: Icons.groups_rounded,
                   title: 'Daily Attendance',
+
                   onTap: () {
                     Navigator.of(context).pushNamed(
                       AppRoutes.ngoAttendance,
@@ -706,6 +759,7 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
                 child: _buildQuickCard(
                   icon: Icons.description_rounded,
                   title: 'Reports',
+
                   onTap: () {
                     Navigator.of(context).pushNamed(
                       AppRoutes.ngoReports,
@@ -724,6 +778,7 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
                 child: _buildQuickCard(
                   icon: Icons.videocam_rounded,
                   title: 'Camera / Video',
+
                   onTap: () {
                     Navigator.of(context).pushNamed(
                       AppRoutes.ngoCamera,
@@ -738,6 +793,7 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
                 child: _buildQuickCard(
                   icon: Icons.business_rounded,
                   title: 'Institute Profile',
+
                   onTap: () {
                     Navigator.of(context).pushNamed(
                       AppRoutes.ngoProfile,
@@ -763,28 +819,43 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
   }) {
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(9),
+
+      borderRadius:
+          BorderRadius.circular(9),
+
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(9),
+
+        borderRadius:
+            BorderRadius.circular(9),
+
         child: Container(
           height: 86,
+
           decoration: BoxDecoration(
             color: cardBackground,
-            borderRadius: BorderRadius.circular(9),
+
+            borderRadius:
+                BorderRadius.circular(9),
+
             border: Border.all(
               color: borderColor,
             ),
+
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.025),
+                color:
+                    Colors.black.withValues(alpha: 0.025),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
+
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment:
+                MainAxisAlignment.center,
+
             children: [
               Icon(
                 icon,
@@ -796,7 +867,10 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
 
               Text(
                 title,
-                textAlign: TextAlign.center,
+
+                textAlign:
+                    TextAlign.center,
+
                 style: const TextStyle(
                   color: navy,
                   fontSize: 11,
@@ -816,9 +890,13 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
 
   Widget _buildTodayOverview() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 18),
+
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+
         children: [
           _buildSectionTitle(
             'Today’s Overview',
@@ -878,28 +956,38 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
   }) {
     return Container(
       height: 105,
+
       padding: const EdgeInsets.fromLTRB(
         10,
         10,
         7,
         8,
       ),
+
       decoration: BoxDecoration(
         color: cardBackground,
-        borderRadius: BorderRadius.circular(9),
+
+        borderRadius:
+            BorderRadius.circular(9),
+
         border: Border.all(
           color: borderColor,
         ),
+
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.025),
+            color:
+                Colors.black.withValues(alpha: 0.025),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
         ],
       ),
+
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+
         children: [
           Icon(
             icon,
@@ -911,6 +999,7 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
 
           Text(
             number,
+
             style: const TextStyle(
               color: navy,
               fontSize: 20,
@@ -922,6 +1011,7 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
 
           Text(
             label,
+
             style: const TextStyle(
               color: Colors.grey,
               fontSize: 9,
@@ -946,6 +1036,7 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
       children: [
         Text(
           title,
+
           style: const TextStyle(
             color: navy,
             fontSize: 15,
@@ -962,8 +1053,10 @@ class _NgoDashboardScreenState extends State<NgoDashboardScreen> {
                 AppRoutes.ngoReports,
               );
             },
+
             child: const Text(
               'View all',
+
               style: TextStyle(
                 color: Color(0xFF2A78B8),
                 fontSize: 11,
